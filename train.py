@@ -8,6 +8,7 @@ from torch import optim
 from data.data_loader import CustomDataLoader
 from model.gender_head import GenderHead
 from model.age_head import AgeHead
+from model.race_head import RaceHead
 import torch
 from os import path
 import numpy as np
@@ -15,7 +16,7 @@ from sklearn.metrics import mean_absolute_error
 
 
 class Train():
-    ATTR_HEAD = {'race': AgeHead, 'gender': GenderHead, 'age': AgeHead}
+    ATTR_HEAD = {'race': RaceHead, 'gender': GenderHead, 'age': AgeHead}
 
     def __init__(self, config):
         self.config = config
@@ -63,14 +64,15 @@ class Train():
 
         print(self.optimizer)
         self.save_file(self.optimizer, 'optimizer.txt')
-        self.tensorboard_loss_every = 100
-        self.evaluate_every = 2000
-        self.save_every = 2000
+
+        self.tensorboard_loss_every = len(self.train_loader) // 100
+        self.evaluate_every = len(self.train_loader) // 5
+        self.save_every = len(self.train_loader) // 5
 
         if self.config.attribute == 'recognition':
             self.agedb_30, self.agedb_30_issame = get_val_pair(self.config.val_source, 'agedb_30')
             self.cfp_fp, self.cfp_fp_issame = get_val_pair(self.config.val_source, 'cfp_fp')
-            self.lfw, , self.lfw_issame = get_val_pair(self.config.val_source, 'lfw')
+            self.lfw, self.lfw_issame = get_val_pair(self.config.val_source, 'lfw')
 
     def run(self):
         self.model.train()
@@ -79,8 +81,6 @@ class Train():
         step = 0
         val_acc = 0.
         val_loss = 0.
-
-        val_acc, val_loss = self.evaluate()
 
         for epoch in range(self.config.epochs):
             if epoch in self.config.reduce_lr:
@@ -107,7 +107,7 @@ class Train():
                     running_loss = 0.
 
                 if step % self.evaluate_every == 0 and step != 0:
-                    val_acc, val_loss = self.evaluate()
+                    val_acc, val_loss = self.evaluate(step)
                     self.model.train()
                     self.head.train()
 
@@ -130,15 +130,16 @@ class Train():
     def tensorboard_val(self, accuracy, loss, step):
         self.writer.add_scalar('val_acc', accuracy, step)
 
-        if val_loss != 0:
+        if self.config.attribute != 'recognition':
             self.writer.add_scalar('val_loss', loss, step)
 
-    def evaluate(self):
+    def evaluate(self, step):
         if self.config.attribute != 'recognition':
             val_acc, val_loss = self.evaluate_attribute()
             self.tensorboard_val(val_acc, val_loss, step)
 
         elif self.config.attribute == 'recognition':
+            # need to finish this
             return self.evaluate_recognition()
 
         return val_acc, val_loss
@@ -173,8 +174,6 @@ class Train():
             y_pred = y_pred.cpu().numpy()
 
             accuracy = round(np.sum(y_true == y_pred) / len(y_pred), 4)
-
-        print(accuracy, loss)
 
         return round(accuracy, 4), round(loss, 4)
 
