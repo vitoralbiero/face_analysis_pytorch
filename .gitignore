@@ -10,7 +10,7 @@ __pycache__/
 .cache
 
 # User workspace
-work_space/
+workspace/
 
 # SGE jobs
 *.sge
