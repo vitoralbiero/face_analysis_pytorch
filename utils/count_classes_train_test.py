@@ -18,12 +18,12 @@ def get_classes_count(array):
 
 def split(train_list, test_list, attribute):
     train_set = np.loadtxt(train_list, dtype=np.str)
-    train_set = train_set[train_set[:, ATTRIBUTES[attribute]].astype('int') >= 0]
-    train_set = train_set[train_set[:, ATTRIBUTES[attribute]].astype('int') <= 100]
+    # train_set = train_set[train_set[:, ATTRIBUTES[attribute]].astype('int') >= 0]
+    # train_set = train_set[train_set[:, ATTRIBUTES[attribute]].astype('int') <= 100]
 
     test_set = np.loadtxt(test_list, dtype=np.str)
-    test_set = test_set[test_set[:, ATTRIBUTES[attribute]].astype('int') >= 0]
-    test_set = test_set[test_set[:, ATTRIBUTES[attribute]].astype('int') <= 100]
+    # test_set = test_set[test_set[:, ATTRIBUTES[attribute]].astype('int') >= 0]
+    # test_set = test_set[test_set[:, ATTRIBUTES[attribute]].astype('int') <= 100]
 
     print(f'{attribute} in train: {get_classes_count(train_set[:, ATTRIBUTES[attribute]])}')
     print('')
