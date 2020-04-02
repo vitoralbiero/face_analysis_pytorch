@@ -7,6 +7,7 @@ from torchvision.datasets import ImageFolder
 import pandas as pd
 
 ATTRIBUTES = {'race': 1, 'gender': 2, 'age': 3, 'recognition': 1}
+MAX_CLASS = {'race': 5, 'gender': 2, 'age': 101, 'recognition': float('Inf')}
 
 
 class ImageList(ImageFolder):
@@ -16,16 +17,24 @@ class ImageList(ImageFolder):
         image_names = pd.read_csv(image_list, delimiter=' ', header=None)
         image_names = np.asarray(image_names)
 
-        # remove images with unknown annotation
-        image_names = image_names[image_names[:, attribute].astype('int') != -1]
+        # remove images that have labels outside of desired range
+        image_names = image_names[image_names[:, attribute].astype('int') >= 0]
+        image_names = image_names[image_names[:, attribute].astype('int') < MAX_CLASS[config.attribute]]
 
         np.random.shuffle(image_names)
 
         self.samples = [path.join(source, image_name) for image_name in image_names[:, 0]]
-        self.targets = image_names[:, attribute].astype('int')
 
-        if attribute == 3:
-            self.targets = self.targets.astype('float')
+        if config.attribute == 'age':
+            self.targets = []
+            for output in image_names[:, attribute].astype('int'):
+                target = np.zeros(shape=MAX_CLASS['age'] - 1)
+                target[:output] = 1
+                self.targets.append(target)
+            self.targets = np.array(self.targets).astype('float32')
+
+        else:
+            self.targets = image_names[:, attribute].astype('float32')
 
         self.transform = transforms.Compose([
             transforms.RandomHorizontalFlip(0.5 if train else 0),
@@ -51,4 +60,4 @@ class CustomDataLoader(DataLoader):
                                                drop_last=drop_last)
 
     def class_num(self):
-        return self._dataset[-1][1] + 1
+        return np.max(self._dataset[: 1]) + 1
