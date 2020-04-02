@@ -5,6 +5,7 @@ from model.resnet import ResNet
 from utils.model_loader import save_state, load_state
 from utils.utils import separate_bn_param
 from torch import optim
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 from data.data_loader import CustomDataLoader
 from model.gender_head import GenderHead
 from model.age_head import AgeHead
@@ -13,6 +14,8 @@ import torch
 from os import path
 import numpy as np
 from sklearn.metrics import mean_absolute_error
+from optimizer.early_stop import EarlyStop
+from torch.nn.functional import log_softmax, kl_div
 
 
 class Train():
@@ -25,12 +28,8 @@ class Train():
 
         self.writer = SummaryWriter(config.log_path)
 
-        self.model = ResNet(self.config.net_depth, self.config.drop_ratio, self.config.net_mode)
+        self.model = ResNet(self.config.depth, self.config.drop_ratio, self.config.net_mode)
         self.head = self.ATTR_HEAD[self.config.attribute]()
-
-        if self.config.pretrained:
-            print(f'Loading pretrained weights from {self.config.pretrained}')
-            load_state(self.model, self.head, None, self.config, self.config.pretrained, True)
 
         paras_only_bn, paras_wo_bn = separate_bn_param(self.model)
 
@@ -60,19 +59,29 @@ class Train():
 
         if self.config.resume:
             print(f'Resuming training from {self.config.resume}')
-            load_state(self.model, self.head, self.optimizer, self.config, self.config.resume, False)
+            load_state(self.model, self.head, self.optimizer, self.config.resume, False)
+
+        if self.config.pretrained:
+            print(f'Loading pretrained weights from {self.config.pretrained}')
+            load_state(self.model, self.head, None, self.config.pretrained, True)
 
         print(self.optimizer)
         self.save_file(self.optimizer, 'optimizer.txt')
 
-        self.tensorboard_loss_every = len(self.train_loader) // 100
-        self.evaluate_every = len(self.train_loader) // 5
-        self.save_every = len(self.train_loader) // 5
+        self.tensorboard_loss_every = max(len(self.train_loader) // 100, 1)
+        self.evaluate_every = max(len(self.train_loader) // 5, 1)
+        self.save_every = max(len(self.train_loader) // 5, 1)
 
         if self.config.attribute == 'recognition':
             self.agedb_30, self.agedb_30_issame = get_val_pair(self.config.val_source, 'agedb_30')
             self.cfp_fp, self.cfp_fp_issame = get_val_pair(self.config.val_source, 'cfp_fp')
             self.lfw, self.lfw_issame = get_val_pair(self.config.val_source, 'lfw')
+
+        if self.config.lr_plateau:
+            self.scheduler = ReduceLROnPlateau(self.optimizer, mode=self.config.max_or_min, factor=0.1,
+                                               patience=3, verbose=True, threshold=0.001, cooldown=1)
+
+        self.early_stop = EarlyStop(mode=self.config.max_or_min)
 
     def run(self):
         self.model.train()
@@ -82,26 +91,30 @@ class Train():
         val_acc = 0.
         val_loss = 0.
 
-        for epoch in range(self.config.epochs):
-            if epoch in self.config.reduce_lr:
-                self.reduce_lr()
+        best_step = 0
+        best_acc = float('Inf')
+        if self.config.max_or_min == 'max':
+            best_acc *= -1
 
+        for epoch in range(self.config.epochs):
             loop = tqdm(iter(self.train_loader))
             for imgs, labels in loop:
                 imgs = imgs.to(self.config.device)
                 labels = labels.to(self.config.device)
 
                 self.optimizer.zero_grad()
+
                 embeddings = self.model(imgs)
                 outputs = self.head(embeddings)
 
                 loss = self.config.loss(outputs, labels)
+
                 loss.backward()
                 running_loss += loss.item()
 
                 self.optimizer.step()
 
-                if step % self.tensorboard_loss_every == 0 and step != 0:
+                if step % self.tensorboard_loss_every == 0:
                     loss_board = running_loss / self.tensorboard_loss_every
                     self.writer.add_scalar('train_loss', loss_board, step)
                     running_loss = 0.
@@ -110,21 +123,39 @@ class Train():
                     val_acc, val_loss = self.evaluate(step)
                     self.model.train()
                     self.head.train()
-
-                if step % self.save_every == 0 and step != 0:
-                    save_state(self.model, self.head, self.optimizer, self.config, val_acc, False, step)
+                    best_acc, best_step = self.save_model(val_acc, best_acc, step, best_step)
 
                 step += 1
                 loop.set_description('Epoch {}/{}'.format(epoch + 1, self.config.epochs))
                 loop.set_postfix(loss=loss.item(), val_acc=val_acc, val_loss=val_loss)
 
-        val_acc, val_loss = self.evaluate()
-        self.tensorboard_val(val_acc, val_loss, step)
-        save_state(self.model, self.head, self.optimizer, self.config, val_acc, True, step)
+            if epoch in self.config.reduce_lr and not self.config.lr_plateau:
+                self.reduce_lr()
+            else:
+                self.scheduler.step(val_acc)
+
+            self.early_stop(val_acc)
+            if self.early_stop.stop:
+                print("Early stopping model...")
+                break
+
+        val_acc, val_loss = self.evaluate(step)
+        best_acc = self.save_model(val_acc, best_acc, step, best_step)
+        print(f'Best accuracy: {best_acc} at step {best_step}')
+
+    def save_model(self, val_acc, best_acc, step, best_step):
+        if (self.config.max_or_min == 'max' and val_acc > best_acc) or \
+           (self.config.max_or_min == 'min' and val_acc < best_acc):
+            best_acc = val_acc
+            best_step = step
+            save_state(self.model, self.head, self.optimizer, self.config, val_acc, step)
+
+        return best_acc, best_step
 
     def reduce_lr(self):
         for params in self.optimizer.param_groups:
             params['lr'] /= 10
+
         print(self.optimizer)
 
     def tensorboard_val(self, accuracy, loss, step):
@@ -148,13 +179,13 @@ class Train():
         self.model.eval()
         self.head.eval()
 
-        y_true = torch.tensor([], dtype=torch.long, device=self.config.device)
+        y_true = torch.tensor([], dtype=self.config.output_type, device=self.config.device)
         all_outputs = torch.tensor([], device=self.config.device)
 
         with torch.no_grad():
             for imgs, labels in iter(self.val_loader):
                 imgs = imgs.to(self.config.device)
-                labels = labels.to(self.config.device).long()
+                labels = labels.to(self.config.device)
 
                 embeddings = self.model(imgs)
                 outputs = self.head(embeddings)
@@ -162,20 +193,27 @@ class Train():
                 y_true = torch.cat((y_true, labels), 0)
                 all_outputs = torch.cat((all_outputs, outputs), 0)
 
-            loss = self.config.loss(all_outputs, y_true).item()
+            loss = round(self.config.loss(all_outputs, y_true).item(), 4)
 
         y_true = y_true.cpu().numpy()
 
         if self.config.attribute == 'age':
             y_pred = all_outputs.cpu().numpy()
-            accuracy = mean_absolute_error(y_true, y_pred)
+            y_pred = np.round(y_pred, 0)
+            y_pred = np.sum(y_pred, axis=1)
+            y_true = np.sum(y_true, axis=1)
+            accuracy = round(mean_absolute_error(y_true, y_pred), 4)
         else:
-            _, y_pred = torch.max(all_outputs, 1)
-            y_pred = y_pred.cpu().numpy()
+            if self.config.attribute == 'gender':
+                y_pred = all_outputs.cpu().numpy()
+                y_pred = np.round(y_pred, 0)
+            else:
+                _, y_pred = torch.max(all_outputs, 1)
+                y_pred = y_pred.cpu().numpy()
 
             accuracy = round(np.sum(y_true == y_pred) / len(y_pred), 4)
 
-        return round(accuracy, 4), round(loss, 4)
+        return accuracy, loss
 
     def evaluate_recognition(self, samples, issame, nrof_folds=10, tta=False):
         self.model.eval()
