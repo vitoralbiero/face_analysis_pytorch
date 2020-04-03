@@ -46,6 +46,13 @@ class Train():
 
         self.train_loader = CustomDataLoader(self.config, self.config.train_source, self.config.train_list)
 
+        self.weights = None
+        if self.config.attribute in ['race', 'gender']:
+            _, self.weights = np.unique(self.train_loader.dataset.targets, return_counts=True)
+            self.weights = np.max(self.weights) / self.weights
+            self.weights = torch.tensor(self.weights, dtype=torch.float, device=self.config.device)
+            print(self.weights)
+
         if self.config.attribute != 'recognition':
             self.val_loader = CustomDataLoader(self.config, self.config.val_source,
                                                self.config.val_list, False, False, False)
@@ -107,7 +114,10 @@ class Train():
                 embeddings = self.model(imgs)
                 outputs = self.head(embeddings)
 
-                loss = self.config.loss(outputs, labels)
+                if self.weights is not None:
+                    loss = self.config.loss(outputs, labels, weight=self.weights)
+                else:
+                    loss = self.config.loss(outputs, labels)
 
                 loss.backward()
                 running_loss += loss.item()
@@ -193,7 +203,10 @@ class Train():
                 y_true = torch.cat((y_true, labels), 0)
                 all_outputs = torch.cat((all_outputs, outputs), 0)
 
-            loss = round(self.config.loss(all_outputs, y_true).item(), 4)
+            if self.weights is not None:
+                loss = round(self.config.loss(outputs, labels, weight=self.weights).item(), 4)
+            else:
+                loss = round(self.config.loss(outputs, labels).item(), 4)
 
         y_true = y_true.cpu().numpy()
 
@@ -204,12 +217,8 @@ class Train():
             y_true = np.sum(y_true, axis=1)
             accuracy = round(mean_absolute_error(y_true, y_pred), 4)
         else:
-            if self.config.attribute == 'gender':
-                y_pred = all_outputs.cpu().numpy()
-                y_pred = np.round(y_pred, 0)
-            else:
-                _, y_pred = torch.max(all_outputs, 1)
-                y_pred = y_pred.cpu().numpy()
+            _, y_pred = torch.max(all_outputs, 1)
+            y_pred = y_pred.cpu().numpy()
 
             accuracy = round(np.sum(y_true == y_pred) / len(y_pred), 4)
 

@@ -34,7 +34,7 @@ class ImageList(ImageFolder):
             self.targets = np.array(self.targets).astype('float32')
 
         else:
-            self.targets = image_names[:, attribute].astype('float32')
+            self.targets = image_names[:, attribute].astype('int')
 
         self.transform = transforms.Compose([
             transforms.RandomHorizontalFlip(0.5 if train else 0),
