@@ -6,9 +6,9 @@ from torch.nn import BCELoss
 
 
 class Config(EasyDict):
-    LOSS = {'race': nll_loss, 'gender': BCELoss(), 'age': BCELoss(reduction='sum')}
+    LOSS = {'race': nll_loss, 'gender': nll_loss, 'age': BCELoss(reduction='sum')}
     MAX_OR_MIN = {'race': 'max', 'gender': 'max', 'age': 'min', 'recognition': 'max'}
-    OUTPUT_TYPE = {'race': torch.long, 'gender': torch.float, 'age': torch.float, 'recognition': torch.long}
+    OUTPUT_TYPE = {'race': torch.long, 'gender': torch.long, 'age': torch.float, 'recognition': torch.long}
 
     def __init__(self, prefix, attribute):
         self.prefix = prefix
