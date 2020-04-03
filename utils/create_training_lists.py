@@ -95,6 +95,12 @@ def UTKFace(image_path):
     image_name = path.split(image_path)[1]
     age, gender, race = image_name.split('_')[0:3]
 
+    if int(gender) == 1:
+        gender = 0
+
+    elif int(gender) == 0:
+        gender = 1
+
     return image_path, int(race), int(gender), int(age)
 
 
