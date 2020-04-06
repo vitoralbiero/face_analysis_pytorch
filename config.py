@@ -1,16 +1,20 @@
 from easydict import EasyDict
 from os import path, makedirs
 import torch
-from torch.nn.functional import nll_loss
+from torch.nn.functional import nll_loss, cross_entropy
 from torch.nn import BCELoss
+from model.arcface_head import ArcFaceHead
+from model.cosface_head import CosFaceHead
 
 
 class Config(EasyDict):
-    LOSS = {'race': nll_loss, 'gender': nll_loss, 'age': BCELoss(reduction='sum')}
+    LOSS = {'race': nll_loss, 'gender': nll_loss,
+            'age': BCELoss(reduction='sum'), 'recognition': cross_entropy}
     MAX_OR_MIN = {'race': 'max', 'gender': 'max', 'age': 'min', 'recognition': 'max'}
     OUTPUT_TYPE = {'race': torch.long, 'gender': torch.long, 'age': torch.float, 'recognition': torch.long}
+    RECOGNITION_HEAD = {'arcface': ArcFaceHead, 'cosface': CosFaceHead}
 
-    def __init__(self, prefix, attribute):
+    def __init__(self, prefix, attribute, recognition_head=None):
         self.prefix = prefix
         self.work_path = path.join('./workspace', self.prefix)
         self.model_path = path.join(self.work_path, 'models')
@@ -44,6 +48,9 @@ class Config(EasyDict):
         self.resume = None
         self.max_or_min = self.MAX_OR_MIN[attribute]
         self.output_type = self.OUTPUT_TYPE[attribute]
+        self.recognition_head = None
+        if recognition_head:
+            self.recognition_head = RECOGNITION_HEAD[recognition_head]
 
     def create_path(self, file_path):
         if not path.exists(file_path):
