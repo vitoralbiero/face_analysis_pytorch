@@ -22,7 +22,7 @@ if __name__ == '__main__':
     parser.add_argument('--val_source', '-vs', help='Path to the val images.')
     parser.add_argument('--attribute', '-a',
                         help='Which attribute to train [race, gender, age, recognition].', type=str)
-    parser.add_argument('--head', '-h',
+    parser.add_argument('--head', '-hd',
                         help='If recognition, which head to use [arcface, cosface].', type=str)
     parser.add_argument('--prefix', '-p', help='Prefix to save the model.', type=str)
 
@@ -31,7 +31,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    config = Config(args.prefix, args.attribute.lower())
+    config = Config(args.prefix, args.attribute.lower(), args.head.lower())
 
     config.net_mode = args.net_mode
     config.depth = args.depth
@@ -47,7 +47,6 @@ if __name__ == '__main__':
     config.multi_gpu = args.multi_gpu
     config.pretrained = args.pretrained
     config.resume = args.resume
-    config.head = args.head
 
     torch.manual_seed(0)
     np.random.seed(0)

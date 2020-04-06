@@ -7,6 +7,7 @@ from utils.utils import separate_bn_param
 from torch import optim
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from data.data_loader import CustomDataLoader
+from data.load_test_sets_recognition import get_val_pair
 from model.gender_head import GenderHead
 from model.age_head import AgeHead
 from model.race_head import RaceHead
@@ -16,6 +17,7 @@ import numpy as np
 from sklearn.metrics import mean_absolute_error
 from optimizer.early_stop import EarlyStop
 from torch.nn.functional import log_softmax, kl_div
+from recognition import verification
 
 
 class Train():
@@ -30,7 +32,7 @@ class Train():
         self.writer = SummaryWriter(config.log_path)
 
         self.model = ResNet(self.config.depth, self.config.drop_ratio, self.config.net_mode)
-        self.head = self.ATTR_HEAD[self.config.attribute]()
+        self.head = ATTR_HEAD[self.config.attribute]()
 
         paras_only_bn, paras_wo_bn = separate_bn_param(self.model)
 
@@ -104,6 +106,8 @@ class Train():
         if self.config.max_or_min == 'max':
             best_acc *= -1
 
+        val_acc, val_loss = self.evaluate(step)
+
         for epoch in range(self.config.epochs):
             loop = tqdm(iter(self.train_loader))
             for imgs, labels in loop:
@@ -113,7 +117,11 @@ class Train():
                 self.optimizer.zero_grad()
 
                 embeddings = self.model(imgs)
-                outputs = self.head(embeddings)
+
+                if self.config.attribute == 'recognition':
+                    outputs = self.head(embeddings, labels)
+                else:
+                    outputs = self.head(embeddings)
 
                 if self.weights is not None:
                     loss = self.config.loss(outputs, labels, weight=self.weights)
@@ -181,18 +189,20 @@ class Train():
             self.tensorboard_val(val_acc, step, val_loss)
 
         elif self.config.attribute == 'recognition':
-            # need to finish this
+            val_loss = 0
             agedb_30_accuracy = self.evaluate_recognition(self.agedb_30, self.agedb_30_issame)
-            self.tensorboard_val(accuracy, step, dataset='agedb_30_')
+            self.tensorboard_val(agedb_30_accuracy, step, dataset='agedb_30_')
+
             lfw_accuracy = self.evaluate_recognition(self.lfw, self.lfw_issame)
-            self.tensorboard_val(accuracy, step, dataset='lfw_')
+            self.tensorboard_val(lfw_accuracy, step, dataset='lfw_')
+
             cfp_fp_accuracy = self.evaluate_recognition(self.cfp_fp, self.cfp_fp_issame)
-            self.tensorboard_val(accuracy, step, dataset='cfp_fp_')
+            self.tensorboard_val(cfp_fp_accuracy, step, dataset='cfp_fp_')
 
             val_acc = (agedb_30_accuracy + lfw_accuracy + cfp_fp_accuracy) / 3
-            self.tensorboard_val(accuracy, step)
+            self.tensorboard_val(val_acc, step)
 
-            return self.evaluate_recognition()
+            print(val_acc)
 
         return val_acc, val_loss
 
@@ -250,9 +260,9 @@ class Train():
                 batch = torch.tensor(samples[idx:])
                 embeddings[idx:] = self.model(batch.to(self.config.device)).cpu()
 
-        tpr, fpr, accuracy, best_thresholds = evaluate(embeddings, issame, nrof_folds)
+        tpr, fpr, accuracy, best_thresholds = verification.evaluate(embeddings, issame, nrof_folds)
 
-        return accuracy.mean(), 0
+        return accuracy.mean()
 
     def save_file(self, string, file_name):
         file = open(path.join(self.config.work_path, file_name), "w")
