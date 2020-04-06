@@ -50,7 +50,7 @@ class Config(EasyDict):
         self.output_type = self.OUTPUT_TYPE[attribute]
         self.recognition_head = None
         if recognition_head:
-            self.recognition_head = RECOGNITION_HEAD[recognition_head]
+            self.recognition_head = self.RECOGNITION_HEAD[recognition_head]
 
     def create_path(self, file_path):
         if not path.exists(file_path):

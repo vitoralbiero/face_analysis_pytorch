@@ -2,9 +2,9 @@ from torch.nn import Module, Parameter
 import torch
 
 
-class Am_softmax(Module):
+class CosFaceHead(Module):
     def __init__(self, embedding_size=512, classnum=51332):
-        super(Am_softmax, self).__init__()
+        super(CosFaceHead, self).__init__()
         self.classnum = classnum
         self.kernel = Parameter(torch.Tensor(embedding_size, classnum))
         # initial kernel
