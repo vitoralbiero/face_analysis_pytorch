@@ -19,12 +19,13 @@ from torch.nn.functional import log_softmax, kl_div
 
 
 class Train():
-    ATTR_HEAD = {'race': RaceHead, 'gender': GenderHead, 'age': AgeHead}
-
     def __init__(self, config):
         self.config = config
         print(self.config)
         self.save_file(self.config, 'config.txt')
+
+        ATTR_HEAD = {'race': RaceHead, 'gender': GenderHead,
+                     'age': AgeHead, 'recognition': self.config.recognition_head}
 
         self.writer = SummaryWriter(config.log_path)
 
@@ -57,6 +58,11 @@ class Train():
             self.val_loader = CustomDataLoader(self.config, self.config.val_source,
                                                self.config.val_list, False, False, False)
 
+        elif self.config.attribute == 'recognition':
+            self.agedb_30, self.agedb_30_issame = get_val_pair(self.config.val_source, 'agedb_30')
+            self.cfp_fp, self.cfp_fp_issame = get_val_pair(self.config.val_source, 'cfp_fp')
+            self.lfw, self.lfw_issame = get_val_pair(self.config.val_source, 'lfw')
+
         self.optimizer = optim.SGD([{'params': paras_wo_bn,
                                      'weight_decay': self.config.weight_decay},
                                     {'params': self.head.parameters(),
@@ -78,11 +84,6 @@ class Train():
         self.tensorboard_loss_every = max(len(self.train_loader) // 100, 1)
         self.evaluate_every = max(len(self.train_loader) // 5, 1)
         self.save_every = max(len(self.train_loader) // 5, 1)
-
-        if self.config.attribute == 'recognition':
-            self.agedb_30, self.agedb_30_issame = get_val_pair(self.config.val_source, 'agedb_30')
-            self.cfp_fp, self.cfp_fp_issame = get_val_pair(self.config.val_source, 'cfp_fp')
-            self.lfw, self.lfw_issame = get_val_pair(self.config.val_source, 'lfw')
 
         if self.config.lr_plateau:
             self.scheduler = ReduceLROnPlateau(self.optimizer, mode=self.config.max_or_min, factor=0.1,
@@ -168,8 +169,8 @@ class Train():
 
         print(self.optimizer)
 
-    def tensorboard_val(self, accuracy, loss, step):
-        self.writer.add_scalar('val_acc', accuracy, step)
+    def tensorboard_val(self, accuracy, step, loss=0, dataset=''):
+        self.writer.add_scalar('{}val_acc'.format(dataset), accuracy, step)
 
         if self.config.attribute != 'recognition':
             self.writer.add_scalar('val_loss', loss, step)
@@ -177,10 +178,20 @@ class Train():
     def evaluate(self, step):
         if self.config.attribute != 'recognition':
             val_acc, val_loss = self.evaluate_attribute()
-            self.tensorboard_val(val_acc, val_loss, step)
+            self.tensorboard_val(val_acc, step, val_loss)
 
         elif self.config.attribute == 'recognition':
             # need to finish this
+            agedb_30_accuracy = self.evaluate_recognition(self.agedb_30, self.agedb_30_issame)
+            self.tensorboard_val(accuracy, step, dataset='agedb_30_')
+            lfw_accuracy = self.evaluate_recognition(self.lfw, self.lfw_issame)
+            self.tensorboard_val(accuracy, step, dataset='lfw_')
+            cfp_fp_accuracy = self.evaluate_recognition(self.cfp_fp, self.cfp_fp_issame)
+            self.tensorboard_val(accuracy, step, dataset='cfp_fp_')
+
+            val_acc = (agedb_30_accuracy + lfw_accuracy + cfp_fp_accuracy) / 3
+            self.tensorboard_val(accuracy, step)
+
             return self.evaluate_recognition()
 
         return val_acc, val_loss

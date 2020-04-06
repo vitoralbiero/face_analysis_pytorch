@@ -20,7 +20,10 @@ if __name__ == '__main__':
     parser.add_argument('--val_list', '-v', help='List of images to validate.')
     parser.add_argument('--train_source', '-ts', help='Path to the train images.')
     parser.add_argument('--val_source', '-vs', help='Path to the val images.')
-    parser.add_argument('--attribute', '-a', help='Which attribute to train [race, gender, age].', type=str)
+    parser.add_argument('--attribute', '-a',
+                        help='Which attribute to train [race, gender, age, recognition].', type=str)
+    parser.add_argument('--head', '-h',
+                        help='If recognition, which head to use [arcface, cosface].', type=str)
     parser.add_argument('--prefix', '-p', help='Prefix to save the model.', type=str)
 
     parser.add_argument('--pretrained', '-pt', help='Path to pretrained weights.', type=str)
@@ -44,6 +47,7 @@ if __name__ == '__main__':
     config.multi_gpu = args.multi_gpu
     config.pretrained = args.pretrained
     config.resume = args.resume
+    config.head = args.head
 
     torch.manual_seed(0)
     np.random.seed(0)
