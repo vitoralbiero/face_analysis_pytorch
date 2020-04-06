@@ -12,72 +12,107 @@ from tqdm import tqdm
 from torch.nn import DataParallel
 
 
-def create_model(depth, drop_ratio, net_mode, model_path, head, device):
-    model = DataParallel(ResNet(depth, drop_ratio, net_mode)).to(device)
-    head = DataParallel(head()).to(device)
+class Predictor():
+    def __init__(self, race_model_path, gender_model_path, age_model_path, source, image_list, dest,
+                 net_mode, depth, batch_size, workers, drop_ratio, device):
 
-    load_state(model, head, None, model_path, True)
+        self.loader = PredictionDataLoader(batch_size, workers, source, image_list)
+        self.predictions = np.asarray(self.loader.dataset.samples)
+        self.race_model, self.race_head = None, None
+        self.gender_model, self.gender_head = None, None
+        self.age_model, self.age_head = None, None
+        self.device = device
+        self.save_file = path.join(dest, path.split(image_list)[1][:-4] + '_predictions.txt')
 
-    model.eval()
-    head.eval()
+        if race_model_path:
+            self.race_model, self.race_head = self.create_model(depth, drop_ratio, net_mode,
+                                                                race_model_path, RaceHead)
+            self.race_model.eval()
+            self.race_head.eval()
 
-    return model, head
+        if gender_model_path:
+            self.gender_model, self.gender_head = self.create_model(depth, drop_ratio, net_mode,
+                                                                    gender_model_path, GenderHead)
+            self.gender_model.eval()
+            self.gender_head.eval()
 
+        if age_model_path:
+            self.age_model, self.age_head = self.create_model(depth, drop_ratio, net_mode,
+                                                              age_model_path, AgeHead)
+            self.age_model.eval()
+            self.age_head.eval()
 
-def predict(loader, device, model, head, attribute):
-    model.eval()
-    head.eval()
+    def create_model(self, depth, drop_ratio, net_mode, model_path, head):
+        model = DataParallel(ResNet(depth, drop_ratio, net_mode)).to(self.device)
+        head = DataParallel(head()).to(self.device)
 
-    all_outputs = torch.tensor([], device=device)
+        load_state(model, head, None, model_path, True)
 
-    with torch.no_grad():
-        for imgs in tqdm(iter(loader)):
-            imgs = imgs.to(device)
+        model.eval()
+        head.eval()
 
-            embeddings = model(imgs)
-            outputs = head(embeddings)
+        return model, head
 
-            all_outputs = torch.cat((all_outputs, outputs), 0)
+    def get_predictions(self, imgs, model, head, all_outputs):
+        embeddings = model(imgs)
+        outputs = head(embeddings)
 
-    if attribute == 'age':
-        y_pred = all_outputs.cpu().numpy()
-        y_pred = np.round(y_pred, 0)
-        y_pred = np.sum(y_pred, axis=1)
-    else:
-        _, y_pred = torch.max(all_outputs, 1)
-        y_pred = y_pred.cpu().numpy()
+        all_outputs = torch.cat((all_outputs, outputs), 0)
 
-    return y_pred
+        return all_outputs
 
+    def predict(self):
+        if self.race_model:
+            race_outputs = torch.tensor([], device=device)
 
-def predict_attributes(race_model_path, gender_model_path, age_model_path, source, image_list, dest,
-                       net_mode, depth, batch_size, workers, drop_ratio, device):
+        if self.gender_model:
+            gender_outputs = torch.tensor([], device=self.device)
 
-    predict_loader = PredictionDataLoader(batch_size, workers, source, image_list)
+        if self.age_model:
+            age_outputs = torch.tensor([], device=self.device)
 
-    predictions = np.asarray(predict_loader.dataset.samples)
+        with torch.no_grad():
+            for imgs in tqdm(iter(self.loader)):
+                imgs = imgs.to(device)
 
-    if race_model_path:
-        race_model, race_head = create_model(depth, drop_ratio, net_mode, race_model_path, RaceHead, device)
+                if self.race_model:
+                    race_outputs = self.get_predictions(imgs, self.race_model, self.race_head, race_outputs)
 
-        race_preds = predict(predict_loader, device, race_model, race_head, 'race')
-        predictions = np.column_stack((predictions, race_preds))
+                if self.gender_model:
+                    gender_outputs = self.get_predictions(imgs, self.gender_model,
+                                                          self.gender_head, gender_outputs)
 
-    if gender_model_path:
-        gender_model, gender_head = create_model(depth, drop_ratio, net_mode,
-                                                 gender_model_path, GenderHead, device)
+                if self.age_model:
+                    age_outputs = self.get_predictions(imgs, self.age_model, self.age_head, age_outputs)
 
-        gender_preds = predict(predict_loader, device, gender_model, gender_head, 'gender')
-        predictions = np.column_stack((predictions, gender_preds))
+        if self.race_model:
+            _, race_outputs = torch.max(race_outputs, 1)
+            race_outputs = race_outputs.cpu().numpy()
 
-    if age_model_path:
-        age_model, age_head = create_model(depth, drop_ratio, net_mode, age_model_path, AgeHead, device)
+        if self.gender_model:
+            _, gender_outputs = torch.max(gender_outputs, 1)
+            gender_outputs = gender_outputs.cpu().numpy()
 
-        age_preds = predict(predict_loader, device, age_model, age_head, 'age')
-        predictions = np.column_stack((predictions, age_preds))
+        if self.age_model:
+            age_outputs = age_outputs.cpu().numpy()
+            age_outputs = np.round(age_outputs, 0)
+            age_outputs = np.sum(age_outputs, axis=1)
 
-    np.savetxt(path.join(dest, path.split(image_list)[1][:-4] + '_predictions.txt'),
-               predictions, delimiter=' ', fmt='%s')
+        return race_outputs, gender_outputs, age_outputs
+
+    def run(self):
+        race_preds, gender_preds, age_preds = self.predict()
+
+        if race_preds is not None:
+            self.predictions = np.column_stack((self.predictions, race_preds))
+
+        if gender_preds is not None:
+            self.predictions = np.column_stack((self.predictions, gender_preds))
+
+        if age_preds is not None:
+            self.predictions = np.column_stack((self.predictions, age_preds))
+
+        np.savetxt(self.save_file, self.predictions, delimiter=' ', fmt='%s')
 
 
 if __name__ == '__main__':
@@ -102,6 +137,7 @@ if __name__ == '__main__':
     drop_ratio = 0.4
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    predict_attributes(args.race_model, args.gender_model, args.age_model, args.source, args.image_list,
-                       args.dest, args.net_mode, args.depth, args.batch_size,
-                       args.workers, drop_ratio, device)
+    predictor = Predictor(args.race_model, args.gender_model, args.age_model, args.source, args.image_list,
+                          args.dest, args.net_mode, args.depth, args.batch_size,
+                          args.workers, drop_ratio, device)
+    predictor.run()
