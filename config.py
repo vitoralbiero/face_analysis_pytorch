@@ -25,7 +25,6 @@ class Config(EasyDict):
         self.loss = self.LOSS[attribute]
         self.input_size = [112, 112]
         self.embedding_size = 512
-        self.use_mobilfacenet = False
         self.depth = 50
         self.drop_ratio = 0.4
         self.net_mode = 'ir_se'
@@ -37,8 +36,9 @@ class Config(EasyDict):
         self.momentum = 0.9
         self.pin_memory = True
         self.epochs = 20
-        self.reduce_lr = [12, 15, 18]
+        self.reduce_lr = [7, 11]
         self.lr_plateau = None
+        self.early_stop = None
         self.workers = 4
         self.train_list = None
         self.train_source = None
@@ -50,7 +50,7 @@ class Config(EasyDict):
         self.output_type = self.OUTPUT_TYPE[attribute]
         self.recognition_head = None
         if recognition_head:
-            self.recognition_head = self.RECOGNITION_HEAD[recognition_head]
+            self.recognition_head = self.RECOGNITION_HEAD[recognition_head.lower()]
 
     def create_path(self, file_path):
         if not path.exists(file_path):

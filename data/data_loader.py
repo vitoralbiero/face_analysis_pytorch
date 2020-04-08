@@ -7,7 +7,7 @@ from torchvision.datasets import ImageFolder
 import pandas as pd
 
 ATTRIBUTES = {'race': 1, 'gender': 2, 'age': 3, 'recognition': 1}
-MAX_CLASS = {'race': 5, 'gender': 2, 'age': 101, 'recognition': float('Inf')}
+MAX_CLASS = {'race': 4, 'gender': 1, 'age': 100, 'recognition': float('Inf')}
 
 
 class ImageList(ImageFolder):
@@ -19,7 +19,7 @@ class ImageList(ImageFolder):
 
         # remove images that have labels outside of desired range
         image_names = image_names[image_names[:, attribute].astype('int') >= 0]
-        image_names = image_names[image_names[:, attribute].astype('int') < MAX_CLASS[config.attribute]]
+        image_names = image_names[image_names[:, attribute].astype('int') <= MAX_CLASS[config.attribute]]
 
         np.random.shuffle(image_names)
 
@@ -28,13 +28,15 @@ class ImageList(ImageFolder):
         if config.attribute == 'age':
             self.targets = []
             for output in image_names[:, attribute].astype('int'):
-                target = np.zeros(shape=MAX_CLASS['age'] - 1)
+                target = np.zeros(shape=MAX_CLASS['age'])
                 target[:output] = 1
                 self.targets.append(target)
             self.targets = np.array(self.targets).astype('float32')
+            self.classnum = MAX_CLASS['age']
 
         else:
             self.targets = image_names[:, attribute].astype('int')
+            self.classnum = np.max(self.targets) + 1
 
         self.transform = transforms.Compose([
             transforms.RandomHorizontalFlip(0.5 if train else 0),
@@ -53,6 +55,7 @@ class ImageList(ImageFolder):
 
 class CustomDataLoader(DataLoader):
     def __init__(self, config, source, image_list, shuffle=True, drop_last=True, train=True):
+        self._config = config
         self._dataset = ImageList(config, source, image_list, train)
 
         super(CustomDataLoader, self).__init__(self._dataset, batch_size=config.batch_size, shuffle=shuffle,
@@ -60,4 +63,4 @@ class CustomDataLoader(DataLoader):
                                                drop_last=drop_last)
 
     def class_num(self):
-        return np.max(self._dataset[: 1]) + 1
+        return self._dataset.classnum
