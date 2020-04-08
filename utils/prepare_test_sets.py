@@ -4,7 +4,6 @@ import pickle
 import mxnet as mx
 from torchvision import transforms
 import numpy as np
-import cv2
 from os import path
 from PIL import Image, ImageFile
 ImageFile.LOAD_TRUNCATED_IMAGES = True
@@ -26,10 +25,8 @@ def load_bin(path, image_size=[112, 112]):
     for i in range(len(bins)):
         _bin = bins[i]
         img = mx.image.imdecode(_bin).asnumpy()
-        img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
         img = Image.fromarray(img.astype(np.uint8))
         data[i, ...] = TRANSFORM(img)
-        i += 1
 
         if i % 1000 == 0:
             print('Loading bin...', i)

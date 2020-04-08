@@ -3,9 +3,9 @@ from torch import sigmoid
 
 
 class AgeHead(Module):
-    def __init__(self):
+    def __init__(self, classnum=100):
         super(AgeHead, self).__init__()
-        self.fc1 = Linear(512, 100)
+        self.fc1 = Linear(512, classnum)
 
     def forward(self, x):
         x = self.fc1(x)

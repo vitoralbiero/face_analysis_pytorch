@@ -16,7 +16,6 @@ from os import path
 import numpy as np
 from sklearn.metrics import mean_absolute_error
 from optimizer.early_stop import EarlyStop
-from torch.nn.functional import log_softmax, kl_div
 from recognition import verification
 
 
@@ -31,8 +30,11 @@ class Train():
 
         self.writer = SummaryWriter(config.log_path)
 
+        self.train_loader = CustomDataLoader(self.config, self.config.train_source, self.config.train_list)
+        print(f'Classes: {self.train_loader.class_num()}')
+
         self.model = ResNet(self.config.depth, self.config.drop_ratio, self.config.net_mode)
-        self.head = ATTR_HEAD[self.config.attribute]()
+        self.head = ATTR_HEAD[self.config.attribute](classnum=self.train_loader.class_num())
 
         paras_only_bn, paras_wo_bn = separate_bn_param(self.model)
 
@@ -47,8 +49,6 @@ class Train():
         self.model = self.model.to(self.config.device)
         self.head = self.head.to(self.config.device)
 
-        self.train_loader = CustomDataLoader(self.config, self.config.train_source, self.config.train_list)
-
         self.weights = None
         if self.config.attribute in ['race', 'gender']:
             _, self.weights = np.unique(self.train_loader.dataset.targets, return_counts=True)
@@ -60,7 +60,7 @@ class Train():
             self.val_loader = CustomDataLoader(self.config, self.config.val_source,
                                                self.config.val_list, False, False, False)
 
-        elif self.config.attribute == 'recognition':
+        else:
             self.agedb_30, self.agedb_30_issame = get_val_pair(self.config.val_source, 'agedb_30')
             self.cfp_fp, self.cfp_fp_issame = get_val_pair(self.config.val_source, 'cfp_fp')
             self.lfw, self.lfw_issame = get_val_pair(self.config.val_source, 'lfw')
@@ -90,8 +90,8 @@ class Train():
         if self.config.lr_plateau:
             self.scheduler = ReduceLROnPlateau(self.optimizer, mode=self.config.max_or_min, factor=0.1,
                                                patience=3, verbose=True, threshold=0.001, cooldown=1)
-
-        self.early_stop = EarlyStop(mode=self.config.max_or_min)
+        if self.config.early_stop:
+            self.early_stop = EarlyStop(mode=self.config.max_or_min)
 
     def run(self):
         self.model.train()
@@ -105,8 +105,6 @@ class Train():
         best_acc = float('Inf')
         if self.config.max_or_min == 'max':
             best_acc *= -1
-
-        val_acc, val_loss = self.evaluate(step)
 
         for epoch in range(self.config.epochs):
             loop = tqdm(iter(self.train_loader))
@@ -153,10 +151,11 @@ class Train():
             else:
                 self.scheduler.step(val_acc)
 
-            self.early_stop(val_acc)
-            if self.early_stop.stop:
-                print("Early stopping model...")
-                break
+            if self.config.early_stop:
+                self.early_stop(val_acc)
+                if self.early_stop.stop:
+                    print("Early stopping model...")
+                    break
 
         val_acc, val_loss = self.evaluate(step)
         best_acc = self.save_model(val_acc, best_acc, step, best_step)
@@ -201,8 +200,6 @@ class Train():
 
             val_acc = (agedb_30_accuracy + lfw_accuracy + cfp_fp_accuracy) / 3
             self.tensorboard_val(val_acc, step)
-
-            print(val_acc)
 
         return val_acc, val_loss
 
@@ -251,18 +248,14 @@ class Train():
         embeddings = np.zeros([len(samples), self.config.embedding_size])
 
         with torch.no_grad():
-            while idx + self.config.batch_size <= len(samples):
+            for idx in range(0, len(samples), self.config.batch_size):
                 batch = torch.tensor(samples[idx:idx + self.config.batch_size])
                 embeddings[idx:idx + self.config.batch_size] = self.model(batch.to(self.config.device)).cpu()
                 idx += self.config.batch_size
 
-            if idx < len(samples):
-                batch = torch.tensor(samples[idx:])
-                embeddings[idx:] = self.model(batch.to(self.config.device)).cpu()
-
         tpr, fpr, accuracy, best_thresholds = verification.evaluate(embeddings, issame, nrof_folds)
 
-        return accuracy.mean()
+        return round(accuracy.mean(), 4)
 
     def save_file(self, string, file_name):
         file = open(path.join(self.config.work_path, file_name), "w")
