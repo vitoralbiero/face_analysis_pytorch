@@ -25,7 +25,7 @@ To train for recognition, the [LFW, CFP-FP and AgeDB-30](https://github.com/deep
 
 If you train using [ArcFace](https://arxiv.org/abs/1801.07698) or [CosFace](https://arxiv.org/abs/1801.09414), please cite the apppropriate papers.
 
-## Predict
+## Attribute Predict
 To predict, you will need to pass the trained models (race, gender and/or age) to the predict file, along with path to the images and image list. The predictor assumes that images are already aligned, since I am still trying to add MTCNN to the dataloader as it crashes, since it is done in parallel.
 
 ```
