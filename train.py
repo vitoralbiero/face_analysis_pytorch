@@ -149,8 +149,8 @@ class Train():
                 loop.set_description('Epoch {}/{}'.format(epoch + 1, self.config.epochs))
                 loop.set_postfix(loss=loss.item(), val_acc=val_acc, val_loss=val_loss)
 
-            if self.config.lr_plateau:
-                self.scheduler.step(val_acc)
+            if epoch in self.config.reduce_lr and not self.config.lr_plateau:
+                self.reduce_lr()
 
             if self.config.early_stop:
                 self.early_stop(val_acc)
