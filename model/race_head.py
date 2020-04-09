@@ -3,9 +3,9 @@ from torch.nn.functional import log_softmax
 
 
 class RaceHead(Module):
-    def __init__(self):
+    def __init__(self, classnum=5):
         super(RaceHead, self).__init__()
-        self.fc1 = Linear(512, 5)
+        self.fc1 = Linear(512, classnum)
 
     def forward(self, x):
         x = self.fc1(x)

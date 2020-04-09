@@ -107,6 +107,9 @@ class Train():
             best_acc *= -1
 
         for epoch in range(self.config.epochs):
+            if epoch in self.config.reduce_lr and not self.config.lr_plateau:
+                self.reduce_lr()
+
             loop = tqdm(iter(self.train_loader))
             for imgs, labels in loop:
                 imgs = imgs.to(self.config.device)
@@ -146,9 +149,7 @@ class Train():
                 loop.set_description('Epoch {}/{}'.format(epoch + 1, self.config.epochs))
                 loop.set_postfix(loss=loss.item(), val_acc=val_acc, val_loss=val_loss)
 
-            if epoch in self.config.reduce_lr and not self.config.lr_plateau:
-                self.reduce_lr()
-            else:
+            if self.config.lr_plateau:
                 self.scheduler.step(val_acc)
 
             if self.config.early_stop:
