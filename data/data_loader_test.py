@@ -12,7 +12,10 @@ class ImageList(ImageFolder):
         image_names = pd.read_csv(image_list, delimiter=' ', header=None)
         image_names = np.array(image_names)
 
-        self.samples = [path.join(source, image_name) for image_name in image_names[:, 0]]
+        if source is not None:
+            self.samples = [path.join(source, image_name) for image_name in image_names[:, 0]]
+        else:
+            self.samples = image_names[:, 0]
 
         self.transform = transforms.Compose([
             transforms.Resize((112, 112)),
@@ -29,10 +32,10 @@ class ImageList(ImageFolder):
         return self.transform(img)
 
 
-class PredictionDataLoader(DataLoader):
+class TestDataLoader(DataLoader):
     def __init__(self, batch_size, workers, source, image_list):
         self._dataset = ImageList(source, image_list)
 
-        super(PredictionDataLoader, self).__init__(self._dataset, batch_size=batch_size,
-                                                   shuffle=False, pin_memory=True,
-                                                   num_workers=workers, drop_last=False)
+        super(TestDataLoader, self).__init__(self._dataset, batch_size=batch_size,
+                                             shuffle=False, pin_memory=True,
+                                             num_workers=workers, drop_last=False)
