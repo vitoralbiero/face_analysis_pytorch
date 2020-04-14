@@ -18,7 +18,7 @@ If you want to retrain on your own dataset, aligned the images first and create 
 To train the attribute predictors, you will need to pass the path to images main folder, along with the image list.
 
 ```
-python3 main.py --train_source /path_to_train_dataset_main_folder/ --train_list ./datasets/age_train.txt --val_source ../path_to_val_dataset_main_folder/ --val_list -a age --prefix age --multi_gpu
+python3 main.py --train_source /path_to_train_dataset_main_folder/ --train_list ./datasets/age_train.txt --val_source ../path_to_val_dataset_main_folder/ --val_list ./datasets/age_val.tx -a age --prefix age --multi_gpu
 ```
 
 To train for recognition, the [LFW, CFP-FP and AgeDB-30](https://github.com/deepinsight/insightface) should be converted using [utils/prepare_test_sets.py](https://github.com/vitoralbiero/face_analysis_pytorch/blob/master/utils/prepare_test_sets.py).
