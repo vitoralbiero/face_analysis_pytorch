@@ -18,16 +18,19 @@ if __name__ == '__main__':
     parser.add_argument('--early_stop', '-es', help='Use early stop.', action='store_true')
     parser.add_argument('--multi_gpu', '-m', help='Use multi gpus.', action='store_true')
     parser.add_argument('--workers', '-w', help='Workers number.', default=4, type=int)
+    parser.add_argument('--num_classes', '-nc', help='Number of classes.', default=85742, type=int)
 
     # training/validation configuration
     parser.add_argument('--train_list', '-t', help='List of images to train.')
-    parser.add_argument('--val_list', '-v', help='List of images to validate.')
-    parser.add_argument('--train_source', '-ts', help='Path to the train images.')
-    parser.add_argument('--val_source', '-vs', help='Path to the val images.')
+    parser.add_argument('--val_list', '-v',
+                        help='List of images to validate, or datasets to validate (recognition).',
+                        default=['agedb_30', 'cfp_fp', 'lfw'])
+    parser.add_argument('--train_source', '-ts', help='Path to the train images, or dataset LMDB file.')
+    parser.add_argument('--val_source', '-vs', help='Path to the val images, or dataset LMDB file.')
     parser.add_argument('--attribute', '-a',
                         help='Which attribute to train [race, gender, age, recognition].', type=str)
     parser.add_argument('--head', '-hd',
-                        help='If recognition, which head to use [arcface, cosface].', type=str)
+                        help='If recognition, which head to use [arcface, cosface, adacos].', type=str)
     parser.add_argument('--prefix', '-p', help='Prefix to save the model.', type=str)
 
     # resume from or load pretrained weights

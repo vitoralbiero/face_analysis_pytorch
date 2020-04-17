@@ -3,10 +3,9 @@ from os import path, makedirs
 import torch
 from torch.nn.functional import nll_loss, cross_entropy
 from torch.nn import BCELoss
-from model.arcface_head import ArcFaceHead
-from model.cosface_head import CosFaceHead
-from model.metrics import AdaCos
-from model.metrics import ArcFace
+from metrics.metrics import AdaCos
+from metrics.metrics import ArcFace
+from metrics.metrics import CosFace
 
 
 class Config(EasyDict):
@@ -14,7 +13,7 @@ class Config(EasyDict):
             'age': BCELoss(reduction='sum'), 'recognition': cross_entropy}
     MAX_OR_MIN = {'race': 'max', 'gender': 'max', 'age': 'min', 'recognition': 'max'}
     OUTPUT_TYPE = {'race': torch.long, 'gender': torch.long, 'age': torch.float, 'recognition': torch.long}
-    RECOGNITION_HEAD = {'arcface': ArcFace, 'cosface': CosFaceHead, 'adacos': AdaCos}
+    RECOGNITION_HEAD = {'arcface': ArcFace, 'cosface': CosFace, 'adacos': AdaCos}
 
     def __init__(self, prefix, attribute, recognition_head=None):
         self.prefix = prefix

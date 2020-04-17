@@ -64,18 +64,19 @@ class Train():
             self.weights = torch.tensor(self.weights, dtype=torch.float, device=self.config.device)
             print(self.weights)
 
-        if self.config.attribute != 'recognition':
-            if path.isfile(self.config.val_source):
-                self.train_loader = LMDBDataLoader(self.config, self.config.train_source)
-            else:
-                self.val_loader = CustomDataLoader(self.config, self.config.val_source,
-                                                   self.config.val_list, False)
+        if self.config.val_source is not None:
+            if self.config.attribute != 'recognition':
+                if path.isfile(self.config.val_source):
+                    self.train_loader = LMDBDataLoader(self.config, self.config.train_source)
+                else:
+                    self.val_loader = CustomDataLoader(self.config, self.config.val_source,
+                                                       self.config.val_list, False)
 
-        else:
-            self.validation_list = []
-            for val_name in config.val_list:
-                dataset, issame = get_val_pair(self.config.val_source, val_name)
-                self.validation_list.append([dataset, issame, val_name])
+            else:
+                self.validation_list = []
+                for val_name in config.val_list:
+                    dataset, issame = get_val_pair(self.config.val_source, val_name)
+                    self.validation_list.append([dataset, issame, val_name])
 
         self.optimizer = optim.SGD([{'params': paras_wo_bn,
                                      'weight_decay': self.config.weight_decay},
@@ -152,7 +153,7 @@ class Train():
                     self.writer.add_scalar('train_loss', loss_board, step)
                     running_loss = 0.
 
-                if step % self.evaluate_every == 0 and step != 0:
+                if step % self.evaluate_every == 0 and step != 0 and self.config.val_source is not None:
                     val_acc, val_loss = self.evaluate(step)
                     self.model.train()
                     self.head.train()
