@@ -17,13 +17,12 @@ def dumps_pyarrow(obj):
     return lz4framed.compress(pa.serialize(obj).to_buffer())
 
 
-def list2lmdb(attribute, source, dest, num_workers=16, write_frequency=5000):
+def list2lmdb(source, dest, name, num_workers=16, write_frequency=5000):
     print("Loading dataset from %s" % source)
     dataset = ImageFolder(source, loader=raw_reader)
     data_loader = DataLoader(dataset, num_workers=num_workers, collate_fn=lambda x: x)
 
-    name = f"{path.split(source)[1][:-4]}.lmdb"
-    lmdb_path = path.join(dest, name)
+    lmdb_path = path.join(dest, f"{name}.lmdb")
     isdir = path.isdir(lmdb_path)
 
     print(f"Generate LMDB to {lmdb_path}")
@@ -36,7 +35,7 @@ def list2lmdb(attribute, source, dest, num_workers=16, write_frequency=5000):
                    map_size=size * 2, readonly=False,
                    meminit=False, map_async=True)
 
-    print(len(data_loader.dataset))
+    print(len(dataset), len(data_loader))
     txn = db.begin(write=True)
     max_label = 0
     for idx, data in tqdm(enumerate(data_loader)):
@@ -65,13 +64,11 @@ def list2lmdb(attribute, source, dest, num_workers=16, write_frequency=5000):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--image_list', '-l', help='List of images.')
     parser.add_argument('--source', '-s', help='Path to the images.')
     parser.add_argument('--workers', '-w', help='Workers number.', default=16, type=int)
-    parser.add_argument('--attribute', '-a',
-                        help='Which attribute to load [race, gender, age, recognition].', type=str)
     parser.add_argument('--dest', '-d', help='Path to save the lmdb file.')
+    parser.add_argument('--name', '-n', help='Name for the lmdb file.')
 
     args = parser.parse_args()
 
-    list2lmdb(args.attribute, args.source, args.image_list, args.dest, args.workers)
+    list2lmdb(args.source, args.dest, args.name, args.workers)
