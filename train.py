@@ -1,12 +1,12 @@
 from torch.utils.tensorboard import SummaryWriter
 from torch.nn import DataParallel
-from tqdm import tqdm
 from model.resnet import ResNet
 from utils.model_loader import save_state, load_state
 from utils.utils import separate_bn_param
 from torch import optim
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from data.data_loader import CustomDataLoader
+from data.data_loader_train import CustomDataLoader
+from data.data_loader_train_lmdb import LMDBDataLoader
 from data.load_test_sets_recognition import get_val_pair
 from model.gender_head import GenderHead
 from model.age_head import AgeHead
@@ -17,6 +17,7 @@ import numpy as np
 from sklearn.metrics import mean_absolute_error
 from optimizer.early_stop import EarlyStop
 from recognition import verification
+from utils.train_logger import TrainLogger
 
 
 class Train():
@@ -30,11 +31,18 @@ class Train():
 
         self.writer = SummaryWriter(config.log_path)
 
-        self.train_loader = CustomDataLoader(self.config, self.config.train_source, self.config.train_list)
-        print(f'Classes: {self.train_loader.class_num()}')
+        if path.isfile(self.config.train_source):
+            self.train_loader = LMDBDataLoader(self.config, self.config.train_source)
+        else:
+            self.train_loader = CustomDataLoader(self.config, self.config.train_source,
+                                                 self.config.train_list)
+
+        class_num = self.train_loader.class_num()
+        print(len(self.train_loader.dataset))
+        print(f'Classes: {class_num}')
 
         self.model = ResNet(self.config.depth, self.config.drop_ratio, self.config.net_mode)
-        self.head = ATTR_HEAD[self.config.attribute](classnum=self.train_loader.class_num())
+        self.head = ATTR_HEAD[self.config.attribute](classnum=class_num)
 
         paras_only_bn, paras_wo_bn = separate_bn_param(self.model)
 
@@ -57,13 +65,17 @@ class Train():
             print(self.weights)
 
         if self.config.attribute != 'recognition':
-            self.val_loader = CustomDataLoader(self.config, self.config.val_source,
-                                               self.config.val_list, False, False, False)
+            if path.isfile(self.config.val_source):
+                self.train_loader = LMDBDataLoader(self.config, self.config.train_source)
+            else:
+                self.val_loader = CustomDataLoader(self.config, self.config.val_source,
+                                                   self.config.val_list, False)
 
         else:
-            self.agedb_30, self.agedb_30_issame = get_val_pair(self.config.val_source, 'agedb_30')
-            self.cfp_fp, self.cfp_fp_issame = get_val_pair(self.config.val_source, 'cfp_fp')
-            self.lfw, self.lfw_issame = get_val_pair(self.config.val_source, 'lfw')
+            self.validation_list = []
+            for val_name in config.val_list:
+                dataset, issame = get_val_pair(self.config.val_source, val_name)
+                self.validation_list.append([dataset, issame, val_name])
 
         self.optimizer = optim.SGD([{'params': paras_wo_bn,
                                      'weight_decay': self.config.weight_decay},
@@ -85,7 +97,6 @@ class Train():
 
         self.tensorboard_loss_every = max(len(self.train_loader) // 100, 1)
         self.evaluate_every = max(len(self.train_loader) // 5, 1)
-        self.save_every = max(len(self.train_loader) // 5, 1)
 
         if self.config.lr_plateau:
             self.scheduler = ReduceLROnPlateau(self.optimizer, mode=self.config.max_or_min, factor=0.1,
@@ -107,11 +118,13 @@ class Train():
             best_acc *= -1
 
         for epoch in range(self.config.epochs):
-            if epoch in self.config.reduce_lr and not self.config.lr_plateau:
+            train_logger = TrainLogger(self.config.batch_size, self.config.frequency_log)
+
+            if epoch + 1 in self.config.reduce_lr and not self.config.lr_plateau:
                 self.reduce_lr()
 
-            loop = tqdm(iter(self.train_loader))
-            for imgs, labels in loop:
+            for idx, data in enumerate(self.train_loader):
+                imgs, labels = data
                 imgs = imgs.to(self.config.device)
                 labels = labels.to(self.config.device)
 
@@ -144,13 +157,13 @@ class Train():
                     self.model.train()
                     self.head.train()
                     best_acc, best_step = self.save_model(val_acc, best_acc, step, best_step)
+                    print(f'Best accuracy: {best_acc} at step {best_step}')
 
+                train_logger(epoch, self.config.epochs, idx, len(self.train_loader), loss.item())
                 step += 1
-                loop.set_description('Epoch {}/{}'.format(epoch + 1, self.config.epochs))
-                loop.set_postfix(loss=loss.item(), val_acc=val_acc, val_loss=val_loss)
 
-            if epoch in self.config.reduce_lr and not self.config.lr_plateau:
-                self.reduce_lr()
+            if self.config.lr_plateau:
+                self.scheduler.step(val_acc)
 
             if self.config.early_stop:
                 self.early_stop(val_acc)
@@ -190,17 +203,18 @@ class Train():
 
         elif self.config.attribute == 'recognition':
             val_loss = 0
-            agedb_30_accuracy = self.evaluate_recognition(self.agedb_30, self.agedb_30_issame)
-            self.tensorboard_val(agedb_30_accuracy, step, dataset='agedb_30_')
+            val_acc = 0
+            print('Validating...')
+            for idx, validation in enumerate(self.validation_list):
+                dataset, issame, val_name = validation
+                acc, std = self.evaluate_recognition(dataset, issame)
+                self.tensorboard_val(acc, step, dataset=f'{val_name}_')
+                print(f'{val_name}: {acc:.5f}+-{std:.5f}')
+                val_acc += acc
 
-            lfw_accuracy = self.evaluate_recognition(self.lfw, self.lfw_issame)
-            self.tensorboard_val(lfw_accuracy, step, dataset='lfw_')
-
-            cfp_fp_accuracy = self.evaluate_recognition(self.cfp_fp, self.cfp_fp_issame)
-            self.tensorboard_val(cfp_fp_accuracy, step, dataset='cfp_fp_')
-
-            val_acc = (agedb_30_accuracy + lfw_accuracy + cfp_fp_accuracy) / 3
+            val_acc /= (idx + 1)
             self.tensorboard_val(val_acc, step)
+            print(f'Mean accuracy: {val_acc:.5f}')
 
         return val_acc, val_loss
 
@@ -256,7 +270,7 @@ class Train():
 
         tpr, fpr, accuracy, best_thresholds = verification.evaluate(embeddings, issame, nrof_folds)
 
-        return round(accuracy.mean(), 4)
+        return round(accuracy.mean(), 5), round(accuracy.std(), 5)
 
     def save_file(self, string, file_name):
         file = open(path.join(self.config.work_path, file_name), "w")

@@ -81,7 +81,7 @@ def get_blocks(num_layers):
 class bottleneck_IR(Module):
     def __init__(self, in_channel, depth, stride):
         super(bottleneck_IR, self).__init__()
-        if in_channel == depth:
+        if stride == 1:
             self.shortcut_layer = MaxPool2d(1, stride)
         else:
             self.shortcut_layer = Sequential(
@@ -90,6 +90,7 @@ class bottleneck_IR(Module):
         self.res_layer = Sequential(
             BatchNorm2d(in_channel),
             Conv2d(in_channel, depth, (3, 3), (1, 1), 1, bias=False),
+            BatchNorm2d(depth),
             PReLU(depth),
             Conv2d(depth, depth, (3, 3), stride, 1, bias=False),
             BatchNorm2d(depth))
@@ -104,7 +105,7 @@ class bottleneck_IR(Module):
 class bottleneck_IR_SE(Module):
     def __init__(self, in_channel, depth, stride):
         super(bottleneck_IR_SE, self).__init__()
-        if in_channel == depth:
+        if stride == 1:
             self.shortcut_layer = MaxPool2d(1, stride)
         else:
             self.shortcut_layer = Sequential(

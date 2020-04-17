@@ -6,7 +6,7 @@ from model.gender_head import GenderHead
 from model.age_head import AgeHead
 from model.resnet import ResNet
 from utils.model_loader import load_state
-from data.data_loader_predict import PredictionDataLoader
+from data.data_loader_test import TestDataLoader
 import torch
 from tqdm import tqdm
 from torch.nn import DataParallel
@@ -16,7 +16,7 @@ class Predictor():
     def __init__(self, race_model_path, gender_model_path, age_model_path, source, image_list, dest,
                  net_mode, depth, batch_size, workers, drop_ratio, device):
 
-        self.loader = PredictionDataLoader(batch_size, workers, source, image_list)
+        self.loader = TestDataLoader(batch_size, workers, source, image_list)
         self.predictions = np.asarray(self.loader.dataset.samples)
         self.race_model, self.race_head = None, None
         self.gender_model, self.gender_head = None, None
@@ -116,12 +116,11 @@ class Predictor():
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Extract features with CNN')
+    parser = argparse.ArgumentParser(description='Predict Race/Gender/Age from image list.')
     parser.add_argument('--source', '-s', help='Path to the images.')
     parser.add_argument('--image_list', '-i', help='File with images names.')
     parser.add_argument('--dest', '-d', help='Path to save the predictions.')
     parser.add_argument('--batch_size', '-b', help='Batch size.', default=96, type=int)
-    parser.add_argument('--model', help='Path to model.',)
     parser.add_argument('--race_model', '-rm', help='Path to the race model.')
     parser.add_argument('--gender_model', '-gm', help='Path to the gender model.')
     parser.add_argument('--age_model', '-am', help='Path to the age model.')

@@ -24,7 +24,10 @@ class ImageList(ImageFolder):
 
         np.random.shuffle(image_names)
 
-        self.samples = [path.join(source, image_name) for image_name in image_names[:, 0]]
+        if source is not None:
+            self.samples = [path.join(source, image_name) for image_name in image_names[:, 0]]
+        else:
+            self.samples = image_names[:, 0]
 
         if config.attribute == 'age':
             self.targets = []
