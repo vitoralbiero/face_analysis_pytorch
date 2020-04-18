@@ -20,7 +20,7 @@ class LMDB(Dataset):
             # self.length = txn.stat()['entries'] - 1
             self.length = pa.deserialize(lz4framed.decompress(txn.get(b'__len__')))
             self.keys = pa.deserialize(lz4framed.decompress(txn.get(b'__keys__')))
-            self.classnum = pa.deserialize(txn.get(b'__classnum__'))
+            self.classnum = pa.deserialize(lz4framed.decompress(txn.get(b'__classnum__')))
 
         self.transform = transform
         self.target_transform = target_transform
