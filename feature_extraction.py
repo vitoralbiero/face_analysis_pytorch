@@ -7,13 +7,9 @@ from data.data_loader_test import TestDataLoader
 import torch
 from tqdm import tqdm
 from torch.nn import DataParallel
-from model.arcface_head import ArcFaceHead
-from model.cosface_head import CosFaceHead
 
 
 class Extractor():
-    HEAD = {'arcface': ArcFaceHead, 'cosface': CosFaceHead}
-
     def __init__(self, model_path, head, source, image_list, dest,
                  net_mode, depth, batch_size, workers, drop_ratio, device):
 
