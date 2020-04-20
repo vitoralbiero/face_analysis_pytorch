@@ -153,12 +153,15 @@ class Train():
                     self.writer.add_scalar('train_loss', loss_board, step)
                     running_loss = 0.
 
-                if step % self.evaluate_every == 0 and step != 0 and self.config.val_source is not None:
-                    val_acc, val_loss = self.evaluate(step)
-                    self.model.train()
-                    self.head.train()
-                    best_acc, best_step = self.save_model(val_acc, best_acc, step, best_step)
-                    print(f'Best accuracy: {best_acc} at step {best_step}')
+                if step % self.evaluate_every == 0 and step != 0:
+                    if self.config.val_source is not None:
+                        val_acc, val_loss = self.evaluate(step)
+                        self.model.train()
+                        self.head.train()
+                        best_acc, best_step = self.save_model(val_acc, best_acc, step, best_step)
+                        print(f'Best accuracy: {best_acc} at step {best_step}')
+                    else:
+                        save_state(self.model, self.head, self.optimizer, self.config, 0, step)
 
                 train_logger(epoch, self.config.epochs, idx, len(self.train_loader), loss.item())
                 step += 1
