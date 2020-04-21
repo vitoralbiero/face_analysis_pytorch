@@ -54,7 +54,7 @@ def list2lmdb(source, dest, name, num_workers=16, write_frequency=5000):
     with db.begin(write=True) as txn:
         txn.put(b'__keys__', dumps_pyarrow(keys))
         txn.put(b'__len__', dumps_pyarrow(len(keys)))
-        txn.put(b'__classnum__', dumps_pyarrow(max_label))
+        txn.put(b'__classnum__', dumps_pyarrow(max_label + 1))
 
     print("Flushing database ...")
     db.sync()
