@@ -21,7 +21,7 @@ To train the attribute predictors, you will need to pass the path to images main
 ```
 python3 main.py --train_source /path_to_train_dataset_main_folder/ --train_list ./datasets/age_train.txt --val_source ../path_to_val_dataset_main_folder/ --val_list ./datasets/age_val.tx -a age --prefix age --multi_gpu
 ```
-An alternated faster way to train is to convert the datasets to LMDB format. For this end, use the [imagelist2lmdb.py](https://github.com/vitoralbiero/face_analysis_pytorch/blob/master/utils/imagelist2lmdb.py) or [folder2lmdb.py](https://github.com/vitoralbiero/face_analysis_pytorch/blob/master/utils/folder2lmdb.py) to convert a dataset to LMDB. Then, train using the command below.
+An alternate faster way to train is to convert the datasets to LMDB format. For this end, use the [imagelist2lmdb.py](https://github.com/vitoralbiero/face_analysis_pytorch/blob/master/utils/imagelist2lmdb.py) or [folder2lmdb.py](https://github.com/vitoralbiero/face_analysis_pytorch/blob/master/utils/folder2lmdb.py) to convert a dataset to LMDB. Then, train using the command below.
 ```
 python3 main.py --train_source ./train_dataset.lmdb --val_source ./val_dataset.lmdb/ --val_list ./datasets/age_val.tx -a age --prefix age --multi_gpu
 ```
