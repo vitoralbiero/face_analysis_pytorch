@@ -10,7 +10,7 @@ from torch.nn import DataParallel
 
 
 class Extractor():
-    def __init__(self, model_path, head, source, image_list, dest,
+    def __init__(self, model_path, source, image_list, dest,
                  net_mode, depth, batch_size, workers, drop_ratio, device):
 
         self.loader = TestDataLoader(batch_size, workers, source, image_list)
@@ -20,10 +20,10 @@ class Extractor():
         self.device = device
         self.destination = dest
 
-        self.model = self.create_model(depth, drop_ratio, net_mode, model_path, self.HEAD[head])
+        self.model = self.create_model(depth, drop_ratio, net_mode, model_path)
         self.model.eval()
 
-    def create_model(self, depth, drop_ratio, net_mode, model_path, head):
+    def create_model(self, depth, drop_ratio, net_mode, model_path):
         model = DataParallel(ResNet(depth, drop_ratio, net_mode)).to(self.device)
         load_state(model, None, None, model_path, True, False)
 
@@ -64,7 +64,6 @@ if __name__ == '__main__':
     parser.add_argument('--dest', '-d', help='Path to save the predictions.')
     parser.add_argument('--batch_size', '-b', help='Batch size.', default=1000, type=int)
     parser.add_argument('--model', '-m', help='Path to model.')
-    parser.add_argument('--head', '-hd', help='Which head to use [arcface, cosface].', type=str)
     parser.add_argument('--net_mode', '-n', help='Residual type [ir, ir_se].', default='ir_se', type=str)
     parser.add_argument('--depth', '-dp', help='Number of layers [50, 100, 152].', default=50, type=int)
     parser.add_argument('--workers', '-w', help='Workers number.', default=4, type=int)
@@ -77,7 +76,7 @@ if __name__ == '__main__':
     drop_ratio = 0.4
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    extractor = Extractor(args.model, args.head, args.source, args.image_list,
+    extractor = Extractor(args.model, args.source, args.image_list,
                           args.dest, args.net_mode, args.depth, args.batch_size,
                           args.workers, drop_ratio, device)
     extractor.run()

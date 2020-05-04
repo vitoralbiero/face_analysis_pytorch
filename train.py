@@ -23,8 +23,6 @@ from utils.train_logger import TrainLogger
 class Train():
     def __init__(self, config):
         self.config = config
-        print(self.config)
-        self.save_file(self.config, 'config.txt')
 
         ATTR_HEAD = {'race': RaceHead, 'gender': GenderHead,
                      'age': AgeHead, 'recognition': self.config.recognition_head}
@@ -59,15 +57,16 @@ class Train():
 
         self.weights = None
         if self.config.attribute in ['race', 'gender']:
-            _, self.weights = np.unique(self.train_loader.dataset.targets, return_counts=True)
+            _, self.weights = np.unique(self.train_loader.dataset.get_targets(), return_counts=True)
             self.weights = np.max(self.weights) / self.weights
             self.weights = torch.tensor(self.weights, dtype=torch.float, device=self.config.device)
+            self.config.weights = self.weights
             print(self.weights)
 
         if self.config.val_source is not None:
             if self.config.attribute != 'recognition':
                 if path.isfile(self.config.val_source):
-                    self.train_loader = LMDBDataLoader(self.config, self.config.train_source)
+                    self.val_loader = LMDBDataLoader(self.config, self.config.val_source, False)
                 else:
                     self.val_loader = CustomDataLoader(self.config, self.config.val_source,
                                                        self.config.val_list, False)
@@ -92,6 +91,9 @@ class Train():
         if self.config.pretrained:
             print(f'Loading pretrained weights from {self.config.pretrained}')
             load_state(self.model, self.head, None, self.config.pretrained, True)
+
+        print(self.config)
+        self.save_file(self.config, 'config.txt')
 
         print(self.optimizer)
         self.save_file(self.optimizer, 'optimizer.txt')
@@ -159,7 +161,7 @@ class Train():
                         self.model.train()
                         self.head.train()
                         best_acc, best_step = self.save_model(val_acc, best_acc, step, best_step)
-                        print(f'Best accuracy: {best_acc} at step {best_step}')
+                        print(f'Best accuracy: {best_acc:.5f} at step {best_step}')
                     else:
                         save_state(self.model, self.head, self.optimizer, self.config, 0, step)
 

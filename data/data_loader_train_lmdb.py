@@ -51,8 +51,27 @@ class LMDB(Dataset):
 
         return img, target
 
+    def _get_label(self, index):
+        target = None
+        env = self.env
+        with env.begin(write=False) as txn:
+            byteflow = txn.get(self.keys[index])
+
+        unpacked = pa.deserialize(lz4framed.decompress(byteflow))
+        target = unpacked[1]
+
+        return target
+
     def __len__(self):
         return self.length
+
+    def get_targets(self):
+        targets = []
+        for idx in range(self.length):
+            target = self._get_label(idx)
+            targets.append(target)
+
+        return np.asarray(targets)
 
 
 class LMDBDataLoader(DataLoader):

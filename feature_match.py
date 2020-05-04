@@ -19,12 +19,12 @@ class Matcher():
             print(f'Matching {probe_path} to {gallery_path}')
             gallery_file = np.sort(np.loadtxt(args.gallery, dtype=np.str))
             # if matching different files, load gallery features, ids and labels
-            self.probe_equal_gallery = True
+            self.probe_equal_gallery = False
             self.gallery, self.gallery_ids, self.gallery_labels = self.get_features(gallery_file)
         else:
             print(f'Matching {probe_path} to {probe_path}')
             # if matching to the same file, just create a simbolic link to save memory
-            self.probe_equal_gallery = False
+            self.probe_equal_gallery = True
             self.gallery = self.probe
             self.gallery_ids = self.probe_ids
             self.gallery_labels = self.probe_labels
@@ -97,7 +97,7 @@ class Matcher():
         np.save(path.join(output, f'{group}_impostor.npy'), self.get_indices_score(0))
         np.savetxt(path.join(output, f'{group}_labels.txt'),
                    self.create_label_indices(self.probe_labels), delimiter=' ', fmt='%s')
-        if self.probe_equal_gallery:
+        if not self.probe_equal_gallery:
             np.savetxt(path.join(output, f'{group}_gallery_labels.txt'),
                        self.create_label_indices(self.gallery_labels), delimiter=' ', fmt='%s')
 
