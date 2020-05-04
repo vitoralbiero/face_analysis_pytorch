@@ -38,7 +38,7 @@ If you train using [ArcFace](https://arxiv.org/abs/1801.07698) or [CosFace](http
 To predict, you will need to pass the trained models (race, gender and/or age) to the predict file, along with path to the images and image list. The predictor assumes that images are already aligned, since I am still trying to add MTCNN to the dataloader as it crashes, since it is done in parallel.
 
 ```
-python3 predict.py -s /path_to_images_main_folder/ -i ../ext_vol2/training_datasets/ms1m_v2/ms1m_v2_images.txt -d /path_to_save_predictions_file/ -rm ./workspace/race_run_02/final/model_2020-04-03-02-41_accuracy\:0.9705_step\:27051.pth -gm ./workspace/gender_run_01/final/model_2020-04-03-20-33_accuracy\:0.9723_step\:34505.pth -am ./workspace/age_run_01/final/model_2020-04-03-18-31_accuracy\:4.6575_step\:35532.pth
+python3 predict.py -s /path_to_images_main_folder/ -i ../ext_vol2/training_datasets/ms1m_v2/ms1m_v2_images.txt -d /path_to_save_predictions_file/ -rm ./path_to_race_model -gm ./path_to_gender_model -am ./path_to_age_model
 ```
 
 ## Recognition
