@@ -15,6 +15,7 @@ Examples are inside the datasets folder, the attribute training/testing files co
 If you want to retrain on your own dataset, aligned the images first and create a similar list.
 
 ## Training
+### Attributes
 To train the attribute predictors, you will need to pass the path to images main folder, along with the image list, or an image list that contains the absolute path to the images.
 
 ```
@@ -24,6 +25,7 @@ An alternated faster way to train is to convert the datasets to LMDB format. For
 ```
 python3 main.py --train_source ./train_dataset.lmdb --val_source ./val_dataset.lmdb/ --val_list ./datasets/age_val.tx -a age --prefix age --multi_gpu
 ```
+### Recognition
 To train for recognition, the [LFW, CFP-FP and AgeDB-30](https://github.com/deepinsight/insightface) should be converted using [utils/prepare_test_sets.py](https://github.com/vitoralbiero/face_analysis_pytorch/blob/master/utils/prepare_test_sets.py).
 
 ```
