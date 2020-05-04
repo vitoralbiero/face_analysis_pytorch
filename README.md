@@ -6,7 +6,7 @@
 - Along with the attribute predictors, it also contains code to train face recognition models (ArcFace and CosFace).
 
 ## Trained models
-[Model-Zoo](https://github.com/vitoralbiero/face_analysis_pytorch/wiki/Model-Zoo).
+#[Model-Zoo](https://github.com/vitoralbiero/face_analysis_pytorch/wiki/Model-Zoo)
 
 ## Training Dasets
 Training/testing datasets should be a list of image paths and class number.
