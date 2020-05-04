@@ -15,13 +15,20 @@ Examples are inside the datasets folder, the attribute training/testing files co
 If you want to retrain on your own dataset, aligned the images first and create a similar list.
 
 ## Training
-To train the attribute predictors, you will need to pass the path to images main folder, along with the image list.
+To train the attribute predictors, you will need to pass the path to images main folder, along with the image list, or an image list that contains the absolute path to the images.
 
 ```
 python3 main.py --train_source /path_to_train_dataset_main_folder/ --train_list ./datasets/age_train.txt --val_source ../path_to_val_dataset_main_folder/ --val_list ./datasets/age_val.tx -a age --prefix age --multi_gpu
 ```
-
+An alternated faster way to train is to convert the datasets to LMDB format. For this end, use the [imagelist2lmdb.py](https://github.com/vitoralbiero/face_analysis_pytorch/blob/master/utils/imagelist2lmdb.py) or [folder2lmdb.py](https://github.com/vitoralbiero/face_analysis_pytorch/blob/master/utils/folder2lmdb.py) to convert a dataset to LMDB. Then, train using the command below.
+```
+python3 main.py --train_source ./train_dataset.lmdb --val_source ./val_dataset.lmdb/ --val_list ./datasets/age_val.tx -a age --prefix age --multi_gpu
+```
 To train for recognition, the [LFW, CFP-FP and AgeDB-30](https://github.com/deepinsight/insightface) should be converted using [utils/prepare_test_sets.py](https://github.com/vitoralbiero/face_analysis_pytorch/blob/master/utils/prepare_test_sets.py).
+
+```
+python3 main.py --train_source ./ms1m_v2.lmdb --val_source ./path_to_val_datasets/ --val_list ['lfw', 'cpf_fp', 'agedb_30'] -a recognition --prefix arcface --multi_gpu --head arcface
+```
 
 If you train using [ArcFace](https://arxiv.org/abs/1801.07698) or [CosFace](https://arxiv.org/abs/1801.09414), please cite the apppropriate papers.
 
@@ -34,10 +41,16 @@ python3 predict.py -s /path_to_images_main_folder/ -i ../ext_vol2/training_datas
 
 ## Recognition
 ### Feature Extraction
-TO-DO
+Run feature extractor for recognition models. Path to the main folder is optional if the image list does not contain the absolute path.
+```
+python3 feature_extraction.py -s ./path_to_main_folder -i image_list.txt -d ./path_to_save_features/ -m ./model_to_be_loaded
+```
 
 ### Feature Matching
-TO-DO
+Feature match between a probe and a gallery, if matching probe to probe, leave gallery file empty.
+```
+python3 feature_match.py -p ./probe_file.txt -g ./optional_gallery_file.txt -o ./output_path -d dataset_name -gr prefix_of_outputs
+```
 
 ## Credit
 Some implementations in this repository were heavily inspired by:
