@@ -73,11 +73,9 @@ def list2lmdb(attribute, source, image_list, dest, num_workers=16, write_frequen
 
     print(len(data_loader.dataset))
     txn = db.begin(write=True)
-    max_label = 0
     for idx, data in tqdm(enumerate(data_loader)):
         # print(type(data), data)
         image, label = data[0]
-        max_label = max(max_label, label)
         txn.put(u'{}'.format(idx).encode('ascii'), dumps_pyarrow((image, label)))
         if idx % write_frequency == 0:
             print("[%d/%d]" % (idx, len(data_loader)))
@@ -90,7 +88,7 @@ def list2lmdb(attribute, source, image_list, dest, num_workers=16, write_frequen
     with db.begin(write=True) as txn:
         txn.put(b'__keys__', dumps_pyarrow(keys))
         txn.put(b'__len__', dumps_pyarrow(len(keys)))
-        txn.put(b'__classnum__', dumps_pyarrow(max_label + 1))
+        txn.put(b'__classnum__', dumps_pyarrow(data_loader.dataset.classnum))
 
     print("Flushing database ...")
     db.sync()
