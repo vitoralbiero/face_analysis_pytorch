@@ -40,6 +40,8 @@ To predict, you will need to pass the trained models (race, gender and/or age) t
 ```
 python3 predict.py -s /path_to_images_main_folder/ -i ../ext_vol2/training_datasets/ms1m_v2/ms1m_v2_images.txt -d /path_to_save_predictions_file/ -rm ./path_to_race_model -gm ./path_to_gender_model -am ./path_to_age_model
 ```
+Males = 1, Females = 0
+White = 0, Black = 1, Asian = 2, Indian = 3, Other (e.g., hispanic, latino, middle eastern) = 4
 
 ## Recognition
 ### Feature Extraction
