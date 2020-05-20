@@ -30,7 +30,10 @@ class ImageListRaw(ImageFolder):
             self.samples = image_names[:, 0]
 
         self.targets = image_names[:, attribute].astype('int')
-        self.classnum = np.max(self.targets) + 1
+        if attribute_name == 'age':
+            self.classnum = np.max(self.targets)
+        else:
+            self.classnum = np.max(self.targets) + 1
 
     def __len__(self):
         return len(self.samples)

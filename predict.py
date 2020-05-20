@@ -62,6 +62,10 @@ class Predictor():
         return all_outputs
 
     def predict(self):
+        race_outputs = None
+        gender_outputs = None
+        age_outputs = None
+
         if self.race_model:
             race_outputs = torch.tensor([], device=device)
 

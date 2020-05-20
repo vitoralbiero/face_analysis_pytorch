@@ -75,7 +75,7 @@ class ArcFace(nn.Module):
 
 
 class SphereFace(nn.Module):
-    def __init__(self, num_features, classnum, s=30.0, m=1.35):
+    def __init__(self, classnum, num_features=512, s=64.0, m=1.35):
         super(SphereFace, self).__init__()
         self.num_features = num_features
         self.n_classes = classnum
@@ -106,7 +106,7 @@ class SphereFace(nn.Module):
 
 
 class CosFace(nn.Module):
-    def __init__(self, num_features, classnum, s=30.0, m=0.35):
+    def __init__(self, classnum, num_features=512, s=64.0, m=0.35):
         super(CosFace, self).__init__()
         self.num_features = num_features
         self.n_classes = classnum
