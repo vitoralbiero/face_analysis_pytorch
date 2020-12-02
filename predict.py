@@ -67,7 +67,7 @@ class Predictor():
         age_outputs = None
 
         if self.race_model:
-            race_outputs = torch.tensor([], device=device)
+            race_outputs = torch.tensor([], device=self.device)
 
         if self.gender_model:
             gender_outputs = torch.tensor([], device=self.device)

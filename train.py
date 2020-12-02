@@ -243,9 +243,9 @@ class Train():
                 all_outputs = torch.cat((all_outputs, outputs), 0)
 
             if self.weights is not None:
-                loss = round(self.config.loss(outputs, labels, weight=self.weights).item(), 4)
+                loss = round(self.config.loss(all_outputs, y_true, weight=self.weights).item(), 4)
             else:
-                loss = round(self.config.loss(outputs, labels).item(), 4)
+                loss = round(self.config.loss(all_outputs, y_true).item(), 4)
 
         y_true = y_true.cpu().numpy()
 
