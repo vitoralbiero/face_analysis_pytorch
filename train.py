@@ -40,7 +40,10 @@ class Train():
         print(f'Classes: {class_num}')
 
         self.model = ResNet(self.config.depth, self.config.drop_ratio, self.config.net_mode)
-        self.head = ATTR_HEAD[self.config.attribute](classnum=class_num)
+        if self.config.attribute == 'recognition':
+            self.head = ATTR_HEAD[self.config.attribute](classnum=class_num, m=self.config.margin)
+        else:
+            self.head = ATTR_HEAD[self.config.attribute](classnum=class_num)
 
         paras_only_bn, paras_wo_bn = separate_bn_param(self.model)
 

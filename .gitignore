@@ -14,3 +14,5 @@ workspace/
 
 # SGE jobs
 *.sge
+
+**/full_datasets/*

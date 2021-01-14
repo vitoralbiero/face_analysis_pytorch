@@ -18,7 +18,7 @@ class Config(EasyDict):
 
     def __init__(self, prefix, attribute, recognition_head=None):
         self.prefix = prefix
-        self.work_path = path.join('./workspace', self.prefix)
+        self.work_path = path.join('./workspace/', self.prefix)
         self.model_path = path.join(self.work_path, 'models')
         self.create_path(self.model_path)
         self.log_path = path.join(self.work_path, 'log')
@@ -54,6 +54,7 @@ class Config(EasyDict):
         self.recognition_head = None
         if recognition_head:
             self.recognition_head = self.RECOGNITION_HEAD[recognition_head.lower()]
+        self.margin = None
 
     def create_path(self, file_path):
         if not path.exists(file_path):

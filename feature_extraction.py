@@ -62,7 +62,7 @@ if __name__ == '__main__':
     parser.add_argument('--source', '-s', help='Path to the images.')
     parser.add_argument('--image_list', '-i', help='File with images names.')
     parser.add_argument('--dest', '-d', help='Path to save the predictions.')
-    parser.add_argument('--batch_size', '-b', help='Batch size.', default=1000, type=int)
+    parser.add_argument('--batch_size', '-b', help='Batch size.', default=250, type=int)
     parser.add_argument('--model', '-m', help='Path to model.')
     parser.add_argument('--net_mode', '-n', help='Residual type [ir, ir_se].', default='ir_se', type=str)
     parser.add_argument('--depth', '-dp', help='Number of layers [50, 100, 152].', default=50, type=int)
