@@ -93,7 +93,14 @@ class Train():
 
         if self.config.pretrained:
             print(f'Loading pretrained weights from {self.config.pretrained}')
-            load_state(self.model, self.head, None, self.config.pretrained, True)
+            load_state(
+                model = self.model,
+                head = self.head,
+                optimizer = None,
+                path_to_model = self.config.pretrained,
+                model_only = True,
+                load_head = self.config.attribute != 'recognition'
+            )
 
         print(self.config)
         self.save_file(self.config, 'config.txt')
