@@ -16,3 +16,4 @@ workspace/
 *.sge
 
 **/full_datasets/*
+settings.json
