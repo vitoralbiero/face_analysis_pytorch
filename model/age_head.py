@@ -1,5 +1,5 @@
-from torch.nn import Linear, Module
 from torch import sigmoid
+from torch.nn import Linear, Module
 
 
 class AgeHead(Module):

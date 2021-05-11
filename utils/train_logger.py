@@ -21,8 +21,10 @@ class TrainLogger(object):
                 speed = self.frequency * self.batch_size / (time.time() - self.tic)
                 self.running_loss = self.running_loss / self.frequency
 
-                log = f'Epoch: [{epoch + 1}-{total_epochs}] Batch: [{batch}-{total}] ' + \
-                    f'Speed: {speed:.2f} samples/sec Loss: {self.running_loss:.5f}'
+                log = (
+                    f"Epoch: [{epoch + 1}-{total_epochs}] Batch: [{batch}-{total}] "
+                    + f"Speed: {speed:.2f} samples/sec Loss: {self.running_loss:.5f}"
+                )
                 print(log)
 
                 self.running_loss = 0

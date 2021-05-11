@@ -1,6 +1,7 @@
-from os import path, listdir
-import numpy as np
 import argparse
+from os import listdir, path
+
+import numpy as np
 
 
 def convert(main_folder, output):
@@ -13,13 +14,15 @@ def convert(main_folder, output):
             image_path = path.join(class_folder, img_name)
             ret.append([image_path, str(label)])
 
-    np.savetxt(output, ret, delimiter=' ', fmt='%s %i')
+    np.savetxt(output, ret, delimiter=" ", fmt="%s %i")
 
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Folder with classes subfolders to a file to train.')
-    parser.add_argument('--folder', '-f', help='Folder to convert.')
-    parser.add_argument('--output', '-o', help='Output file.')
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Folder with classes subfolders to a file to train."
+    )
+    parser.add_argument("--folder", "-f", help="Folder to convert.")
+    parser.add_argument("--output", "-o", help="Output file.")
 
     args = parser.parse_args()
 

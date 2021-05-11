@@ -268,7 +268,7 @@ class Train:
             meta_val_outputs = meta_model(meta_inputs)
             self.config.loss.reduction = "mean"
             meta_val_loss = self.config.loss(meta_val_outputs, meta_labels)
-            eps_grads = torch.autograd.grad(meta_val_loss, eps)[0].detach()
+            eps_grads = autograd.grad(meta_val_loss, eps)[0].detach()
 
         # 3. Compute weights for current training batch
         w_tilde = torch.clamp(-eps_grads, min=0)

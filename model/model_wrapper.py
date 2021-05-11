@@ -1,5 +1,4 @@
-from torch import sigmoid
-from torch.nn import Linear, Module
+from torch.nn import Module
 
 
 class ModelWrapper(Module):

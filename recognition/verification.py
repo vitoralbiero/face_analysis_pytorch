@@ -24,15 +24,17 @@
 # SOFTWARE.
 
 import numpy as np
-from sklearn.model_selection import KFold
-from sklearn.decomposition import PCA
 import sklearn
 from scipy import interpolate
+from sklearn.decomposition import PCA
+from sklearn.model_selection import KFold
 
 
-def calculate_roc(thresholds, embeddings1, embeddings2, actual_issame, nrof_folds=10, pca=0):
-    assert (embeddings1.shape[0] == embeddings2.shape[0])
-    assert (embeddings1.shape[1] == embeddings2.shape[1])
+def calculate_roc(
+    thresholds, embeddings1, embeddings2, actual_issame, nrof_folds=10, pca=0
+):
+    assert embeddings1.shape[0] == embeddings2.shape[0]
+    assert embeddings1.shape[1] == embeddings2.shape[1]
     nrof_pairs = min(len(actual_issame), embeddings1.shape[0])
     nrof_thresholds = len(thresholds)
     k_fold = KFold(n_splits=nrof_folds, shuffle=False)
@@ -52,7 +54,7 @@ def calculate_roc(thresholds, embeddings1, embeddings2, actual_issame, nrof_fold
         # print('train_set', train_set)
         # print('test_set', test_set)
         if pca > 0:
-            print('doing pca on', fold_idx)
+            print("doing pca on", fold_idx)
             embed1_train = embeddings1[train_set]
             embed2_train = embeddings2[train_set]
             _embed_train = np.concatenate((embed1_train, embed2_train), axis=0)
@@ -70,16 +72,21 @@ def calculate_roc(thresholds, embeddings1, embeddings2, actual_issame, nrof_fold
         # Find the best threshold for the fold
         acc_train = np.zeros((nrof_thresholds))
         for threshold_idx, threshold in enumerate(thresholds):
-            _, _, acc_train[threshold_idx] = calculate_accuracy(threshold, dist[train_set],
-                                                                actual_issame[train_set])
+            _, _, acc_train[threshold_idx] = calculate_accuracy(
+                threshold, dist[train_set], actual_issame[train_set]
+            )
         best_threshold_index = np.argmax(acc_train)
         best_thresholds[fold_idx] = thresholds[best_threshold_index]
         for threshold_idx, threshold in enumerate(thresholds):
-            tprs[fold_idx, threshold_idx], fprs[fold_idx, threshold_idx], _ = calculate_accuracy(
-                threshold, dist[test_set], actual_issame[test_set])
+            (
+                tprs[fold_idx, threshold_idx],
+                fprs[fold_idx, threshold_idx],
+                _,
+            ) = calculate_accuracy(threshold, dist[test_set], actual_issame[test_set])
 
-        _, _, accuracy[fold_idx] = calculate_accuracy(thresholds[best_threshold_index], dist[test_set],
-                                                      actual_issame[test_set])
+        _, _, accuracy[fold_idx] = calculate_accuracy(
+            thresholds[best_threshold_index], dist[test_set], actual_issame[test_set]
+        )
 
     tpr = np.mean(tprs, 0)
     fpr = np.mean(fprs, 0)
@@ -90,7 +97,9 @@ def calculate_accuracy(threshold, dist, actual_issame):
     predict_issame = np.less(dist, threshold)
     tp = np.sum(np.logical_and(predict_issame, actual_issame))
     fp = np.sum(np.logical_and(predict_issame, np.logical_not(actual_issame)))
-    tn = np.sum(np.logical_and(np.logical_not(predict_issame), np.logical_not(actual_issame)))
+    tn = np.sum(
+        np.logical_and(np.logical_not(predict_issame), np.logical_not(actual_issame))
+    )
     fn = np.sum(np.logical_and(np.logical_not(predict_issame), actual_issame))
 
     tpr = 0 if (tp + fn == 0) else float(tp) / float(tp + fn)
@@ -99,8 +108,10 @@ def calculate_accuracy(threshold, dist, actual_issame):
     return tpr, fpr, acc
 
 
-def calculate_val(thresholds, embeddings1, embeddings2, actual_issame, far_target, nrof_folds=10):
-    '''
+def calculate_val(
+    thresholds, embeddings1, embeddings2, actual_issame, far_target, nrof_folds=10
+):
+    """
     Copy from [insightface](https://github.com/deepinsight/insightface)
     :param thresholds:
     :param embeddings1:
@@ -109,9 +120,9 @@ def calculate_val(thresholds, embeddings1, embeddings2, actual_issame, far_targe
     :param far_target:
     :param nrof_folds:
     :return:
-    '''
-    assert (embeddings1.shape[0] == embeddings2.shape[0])
-    assert (embeddings1.shape[1] == embeddings2.shape[1])
+    """
+    assert embeddings1.shape[0] == embeddings2.shape[0]
+    assert embeddings1.shape[1] == embeddings2.shape[1]
     nrof_pairs = min(len(actual_issame), embeddings1.shape[0])
     nrof_thresholds = len(thresholds)
     k_fold = KFold(n_splits=nrof_folds, shuffle=False)
@@ -129,14 +140,17 @@ def calculate_val(thresholds, embeddings1, embeddings2, actual_issame, far_targe
         far_train = np.zeros(nrof_thresholds)
         for threshold_idx, threshold in enumerate(thresholds):
             _, far_train[threshold_idx] = calculate_val_far(
-                threshold, dist[train_set], actual_issame[train_set])
+                threshold, dist[train_set], actual_issame[train_set]
+            )
         if np.max(far_train) >= far_target:
-            f = interpolate.interp1d(far_train, thresholds, kind='slinear')
+            f = interpolate.interp1d(far_train, thresholds, kind="slinear")
             threshold = f(far_target)
         else:
             threshold = 0.0
 
-        val[fold_idx], far[fold_idx] = calculate_val_far(threshold, dist[test_set], actual_issame[test_set])
+        val[fold_idx], far[fold_idx] = calculate_val_far(
+            threshold, dist[test_set], actual_issame[test_set]
+        )
 
     val_mean = np.mean(val)
     far_mean = np.mean(far)
@@ -160,8 +174,13 @@ def evaluate(embeddings, actual_issame, nrof_folds=10, pca=0):
     thresholds = np.arange(0, 4, 0.01)
     embeddings1 = embeddings[0::2]
     embeddings2 = embeddings[1::2]
-    tpr, fpr, accuracy, best_thresholds = calculate_roc(thresholds, embeddings1, embeddings2,
-                                                        np.asarray(actual_issame),
-                                                        nrof_folds=nrof_folds, pca=pca)
+    tpr, fpr, accuracy, best_thresholds = calculate_roc(
+        thresholds,
+        embeddings1,
+        embeddings2,
+        np.asarray(actual_issame),
+        nrof_folds=nrof_folds,
+        pca=pca,
+    )
 
     return tpr, fpr, accuracy, best_thresholds

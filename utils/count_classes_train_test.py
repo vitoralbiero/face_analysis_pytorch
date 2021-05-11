@@ -26,9 +26,7 @@ def split(image_list, attribute):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Count number of classes in datasets."
-    )
+    parser = argparse.ArgumentParser(description="Count number of classes in datasets.")
     parser.add_argument("-i", "--image_list", help="List of images to split.")
     parser.add_argument(
         "-a", "--attribute", help="Attribute to count. [race, gender, age]", type=str

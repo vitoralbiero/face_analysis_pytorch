@@ -38,7 +38,9 @@ class Extractor:
 
     def create_model(self, depth, drop_ratio, net_mode, model_path):
         model = DataParallel(ResNet(depth, drop_ratio, net_mode)).to(self.device)
-        load_state(model=model, path_to_model=model_path, model_only=True, load_head=False)
+        load_state(
+            model=model, path_to_model=model_path, model_only=True, load_head=False
+        )
 
         model.eval()
 
