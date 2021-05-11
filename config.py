@@ -70,6 +70,7 @@ class Config(EasyDict):
         self.margin = args.margin
         self.meta_learning = args.meta_learning
         self.meta_source = args.meta_source
+        self.use_mask = args.use_mask
 
     def create_path(self, file_path):
         if not path.exists(file_path):

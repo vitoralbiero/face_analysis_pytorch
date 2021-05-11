@@ -2,6 +2,7 @@ import argparse
 import random
 
 import numpy as np
+import pandas as pd
 
 
 def get_classes_count(array):
@@ -54,7 +55,8 @@ def get_metatrain_test(image_paths, race, gender):
 
 
 def split(image_list):
-    image_paths = np.loadtxt(image_list, dtype=np.str)
+    image_paths = pd.read_csv(image_list, delimiter=" ", header=None)
+    image_paths = np.asarray(image_paths)
     np.random.shuffle(image_paths)
 
     image_paths = image_paths[

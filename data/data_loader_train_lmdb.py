@@ -8,10 +8,11 @@ import six
 from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
+from utils.image_utils import blur_image
 
 
 class LMDB(Dataset):
-    def __init__(self, db_path, transform=None, target_transform=None, train=True):
+    def __init__(self, db_path, transform=None, target_transform=None, use_mask=False):
         self.db_path = db_path
         self.env = lmdb.open(
             db_path,
@@ -23,7 +24,6 @@ class LMDB(Dataset):
         )
 
         with self.env.begin(write=False) as txn:
-            # self.length = txn.stat()['entries'] - 1
             self.length = pa.deserialize(lz4framed.decompress(txn.get(b"__len__")))
             self.keys = pa.deserialize(lz4framed.decompress(txn.get(b"__keys__")))
             self.classnum = pa.deserialize(
@@ -32,9 +32,10 @@ class LMDB(Dataset):
 
         self.transform = transform
         self.target_transform = target_transform
+        self.use_mask = use_mask
 
     def __getitem__(self, index):
-        img, target = None, None
+        img, target, mask = None, None, None
         env = self.env
         with env.begin(write=False) as txn:
             byteflow = txn.get(self.keys[index])
@@ -46,6 +47,15 @@ class LMDB(Dataset):
         buf.write(imgbuf)
         buf.seek(0)
         img = Image.open(buf).convert("RGB")
+
+        if self.use_mask:
+            imgbuf = unpacked[2]
+            buf = six.BytesIO()
+            buf.write(imgbuf)
+            buf.seek(0)
+            mask = Image.open(buf)
+            img = blur_image(np.asarray(img).copy(), np.asarray(mask).copy())
+            img = Image.fromarray(img)
 
         # load label
         target = unpacked[1]
@@ -82,9 +92,10 @@ class LMDB(Dataset):
 
 
 class LMDBDataLoader(DataLoader):
-    def __init__(self, config, lmdb_path, train=True):
+    def __init__(self, config, lmdb_path, train=True, use_mask=False):
         transform = transforms.Compose(
             [
+                transforms.Resize((112, 112)),
                 transforms.RandomHorizontalFlip(0.5 if train else 0),
                 transforms.ToTensor(),
                 transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5]),
@@ -96,7 +107,7 @@ class LMDBDataLoader(DataLoader):
         if config.attribute == "age":
             target_transform = self.transform_ages_to_one_hot_ordinal
 
-        self._dataset = LMDB(lmdb_path, transform, target_transform, train)
+        self._dataset = LMDB(lmdb_path, transform, target_transform, use_mask)
 
         batch_size = min(config.batch_size, len(self._dataset))
 

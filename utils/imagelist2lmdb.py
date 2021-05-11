@@ -14,7 +14,7 @@ class ImageListRaw(ImageFolder):
     ATTRIBUTES = {"race": 1, "gender": 2, "age": 3, "recognition": 1}
     MAX_CLASS = {"race": 4, "gender": 1, "age": 100, "recognition": float("Inf")}
 
-    def __init__(self, attribute_name, source, image_list, train=True):
+    def __init__(self, attribute_name, source, mask_source, image_list, train=True):
         attribute = self.ATTRIBUTES[attribute_name]
         max_class = self.MAX_CLASS[attribute_name]
 
@@ -29,6 +29,16 @@ class ImageListRaw(ImageFolder):
             self.samples = [
                 path.join(source, image_name) for image_name in image_names[:, 0]
             ]
+            if mask_source is not None:
+                self.masks = [
+                    path.join(mask_source, image_name)
+                    for image_name in image_names[:, 0]
+                ]
+                self.masks = [
+                    f"{image_name[:-4]}_mask.png" for image_name in self.masks
+                ]
+            else:
+                self.masks = None
         else:
             self.samples = image_names[:, 0]
 
@@ -45,12 +55,16 @@ class ImageListRaw(ImageFolder):
         with open(self.samples[index], "rb") as f:
             img = f.read()
 
-        return img, self.targets[index]
+        if self.masks is not None:
+            with open(self.masks[index], "rb") as f:
+                mask = f.read()
+
+        return img, self.targets[index], mask
 
 
 class CustomRawLoader(DataLoader):
-    def __init__(self, attribute, workers, source, image_list):
-        self._dataset = ImageListRaw(attribute, source, image_list)
+    def __init__(self, attribute, workers, source, mask_source, image_list):
+        self._dataset = ImageListRaw(attribute, source, mask_source, image_list)
 
         super(CustomRawLoader, self).__init__(
             self._dataset, num_workers=workers, collate_fn=lambda x: x
@@ -62,10 +76,18 @@ def dumps_pyarrow(obj):
 
 
 def list2lmdb(
-    attribute, source, image_list, dest, num_workers=16, write_frequency=5000
+    attribute,
+    source,
+    mask_source,
+    image_list,
+    dest,
+    num_workers=16,
+    write_frequency=5000,
 ):
     print("Loading dataset from %s" % image_list)
-    data_loader = CustomRawLoader(attribute, num_workers, source, image_list)
+    data_loader = CustomRawLoader(
+        attribute, num_workers, source, mask_source, image_list
+    )
 
     name = f"{path.split(image_list)[1][:-4]}.lmdb"
     lmdb_path = path.join(dest, name)
@@ -73,8 +95,11 @@ def list2lmdb(
 
     print(f"Generate LMDB to {lmdb_path}")
 
-    image_size = 112
+    image_size = 224
     size = len(data_loader.dataset) * image_size * image_size * 3
+    if mask_source is not None:
+        size *= 2
+
     print(f"LMDB max size: {size}")
 
     db = lmdb.open(
@@ -90,8 +115,13 @@ def list2lmdb(
     txn = db.begin(write=True)
     for idx, data in tqdm(enumerate(data_loader)):
         # print(type(data), data)
-        image, label = data[0]
-        txn.put("{}".format(idx).encode("ascii"), dumps_pyarrow((image, label)))
+        image, label, mask = data[0]
+        if mask is not None:
+            txn.put(
+                "{}".format(idx).encode("ascii"), dumps_pyarrow((image, label, mask))
+            )
+        else:
+            txn.put("{}".format(idx).encode("ascii"), dumps_pyarrow((image, label)))
         if idx % write_frequency == 0:
             print("[%d/%d]" % (idx, len(data_loader)))
             txn.commit()
@@ -116,6 +146,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--image_list", "-l", help="List of images.")
     parser.add_argument("--source", "-s", help="Path to the images.")
+    parser.add_argument(
+        "--mask_source", "-ms", help="Path to the image masks [optional]."
+    )
     parser.add_argument("--workers", "-w", help="Workers number.", default=16, type=int)
     parser.add_argument(
         "--attribute",
@@ -127,4 +160,11 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    list2lmdb(args.attribute, args.source, args.image_list, args.dest, args.workers)
+    list2lmdb(
+        args.attribute,
+        args.source,
+        args.mask_source,
+        args.image_list,
+        args.dest,
+        args.workers,
+    )

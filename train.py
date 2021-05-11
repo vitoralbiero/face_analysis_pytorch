@@ -12,7 +12,6 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.tensorboard import SummaryWriter
 
 from config import Config
-from data.data_loader_train import CustomDataLoader
 from data.data_loader_train_lmdb import LMDBDataLoader
 from data.load_test_sets_recognition import get_val_pair
 from model.age_head import AgeHead
@@ -41,10 +40,11 @@ class Train:
         self.writer = SummaryWriter(config.log_path)
 
         if path.isfile(self.config.train_source):
-            self.train_loader = LMDBDataLoader(self.config, self.config.train_source)
-        else:
-            self.train_loader = CustomDataLoader(
-                self.config, self.config.train_source, self.config.train_list
+            self.train_loader = LMDBDataLoader(
+                config=self.config,
+                lmdb_path=self.config.train_source,
+                train=True,
+                use_mask=self.config.use_mask,
             )
 
         class_num = self.train_loader.class_num()
@@ -65,7 +65,7 @@ class Train:
 
         paras_only_bn, paras_wo_bn = separate_bn_param(self.model)
 
-        dummy_input = torch.zeros(1, 3, 112, 112)
+        dummy_input = torch.zeros(1, 3, 112, 112).to(self.config.device)
         self.writer.add_graph(self.full_model, dummy_input)
 
         if torch.cuda.device_count() > 1:
@@ -91,11 +91,10 @@ class Train:
             if self.config.attribute != "recognition":
                 if path.isfile(self.config.val_source):
                     self.val_loader = LMDBDataLoader(
-                        self.config, self.config.val_source, False
-                    )
-                else:
-                    self.val_loader = CustomDataLoader(
-                        self.config, self.config.val_source, self.config.val_list, False
+                        config=self.config,
+                        lmdb_path=self.config.val_source,
+                        train=False,
+                        use_mask=self.config.use_mask,
                     )
 
             else:
@@ -107,7 +106,10 @@ class Train:
         if self.config.meta_source is not None and self.config.meta_learning:
             if path.isfile(self.config.meta_source):
                 self.meta_loader = LMDBDataLoader(
-                    self.config, self.config.meta_source, False
+                    config=self.config,
+                    lmdb_path=self.config.meta_source,
+                    train=False,
+                    use_mask=self.config.use_mask,
                 )
                 self.meta_loader = itertools.cycle(self.meta_loader)
 
@@ -467,6 +469,10 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--meta_source", "-ms", help="Path to the meta images, or dataset LMDB file."
+    )
+    # use masks to focus on face
+    parser.add_argument(
+        "--use_mask", "-us", help="Mask images with masks.", action="store_true"
     )
 
     args = parser.parse_args()
