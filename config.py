@@ -10,8 +10,8 @@ from metrics.metrics import AdaCos, ArcFace, CosFace, SphereFace
 
 class Config(EasyDict):
     LOSS = {
-        "race": NLLLoss(),
-        "gender": NLLLoss(),
+        "race": NLLLoss,
+        "gender": NLLLoss,
         "age": BCELoss(reduction="sum"),
         "recognition": cross_entropy,
     }
@@ -50,7 +50,7 @@ class Config(EasyDict):
         self.lr = args.lr
         self.momentum = 0.9
         self.pin_memory = True
-        self.frequency_log = 20
+        self.frequency_log = 1
         self.epochs = args.epochs
         self.reduce_lr = [9, 12, 14]
         self.lr_plateau = args.lr_plateau

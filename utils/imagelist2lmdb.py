@@ -1,3 +1,4 @@
+import os
 from os import path
 
 import lmdb
@@ -5,9 +6,12 @@ import lz4framed
 import numpy as np
 import pandas as pd
 import pyarrow as pa
+from PIL import Image
 from torch.utils.data import DataLoader
 from torchvision.datasets import ImageFolder
 from tqdm import tqdm
+
+from image_utils import blur_image
 
 
 class ImageListRaw(ImageFolder):
@@ -52,14 +56,23 @@ class ImageListRaw(ImageFolder):
         return len(self.samples)
 
     def __getitem__(self, index):
-        with open(self.samples[index], "rb") as f:
-            img = f.read()
-
         if self.masks is not None:
-            with open(self.masks[index], "rb") as f:
-                mask = f.read()
+            img = Image.open(self.samples[index]).convert("RGB")
+            mask = Image.open(self.masks[index])
+            img = blur_image(np.asarray(img).copy(), np.asarray(mask).copy())
+            img = Image.fromarray(img)
 
-        return img, self.targets[index], mask
+            temp_file = f"/hd3/{index}{path.splitext(self.samples[index])[1]}"
+            img.save(temp_file)
+            with open(temp_file, "rb") as f:
+                img = f.read()
+            os.remove(temp_file)
+
+        else:
+            with open(self.samples[index], "rb") as f:
+                img = f.read()
+
+        return img, self.targets[index]
 
 
 class CustomRawLoader(DataLoader):
@@ -115,13 +128,8 @@ def list2lmdb(
     txn = db.begin(write=True)
     for idx, data in tqdm(enumerate(data_loader)):
         # print(type(data), data)
-        image, label, mask = data[0]
-        if mask is not None:
-            txn.put(
-                "{}".format(idx).encode("ascii"), dumps_pyarrow((image, label, mask))
-            )
-        else:
-            txn.put("{}".format(idx).encode("ascii"), dumps_pyarrow((image, label)))
+        image, label = data[0]
+        txn.put("{}".format(idx).encode("ascii"), dumps_pyarrow((image, label)))
         if idx % write_frequency == 0:
             print("[%d/%d]" % (idx, len(data_loader)))
             txn.commit()

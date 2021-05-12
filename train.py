@@ -1,4 +1,5 @@
 import argparse
+import copy
 import itertools
 from os import path
 
@@ -87,6 +88,11 @@ class Train:
             self.config.weights = self.weights
             print(self.weights)
 
+        if self.config.meta_learning:
+            self.config.loss = self.config.loss()
+        else:
+            self.config.loss = self.config.loss(weight=self.weights)
+
         if self.config.val_source is not None:
             if self.config.attribute != "recognition":
                 if path.isfile(self.config.val_source):
@@ -110,6 +116,7 @@ class Train:
                     lmdb_path=self.config.meta_source,
                     train=False,
                     use_mask=self.config.use_mask,
+                    meta_train=True,
                 )
                 self.meta_loader = itertools.cycle(self.meta_loader)
 
@@ -203,9 +210,9 @@ class Train:
                     if self.config.meta_learning:
                         self.config.loss.reduction = "none"
                         loss = self.config.loss(outputs, labels)
-                        loss = torch.sum(self.weights * loss)
+                        loss = torch.sum(self.weights.to(loss.device) * loss)
                     else:
-                        loss = self.config.loss(outputs, labels, weight=self.weights)
+                        loss = self.config.loss(outputs, labels)
                 else:
                     loss = self.config.loss(outputs, labels)
 
@@ -270,7 +277,51 @@ class Train:
             meta_val_outputs = meta_model(meta_inputs)
             self.config.loss.reduction = "mean"
             meta_val_loss = self.config.loss(meta_val_outputs, meta_labels)
-            eps_grads = autograd.grad(meta_val_loss, eps)[0].detach()
+            eps_grads = autograd.grad(meta_val_loss, eps, only_inputs=True)[0].detach()
+
+        # 3. Compute weights for current training batch
+        w_tilde = torch.clamp(-eps_grads, min=0)
+        l1_norm = torch.sum(w_tilde)
+        if l1_norm != 0:
+            w = w_tilde / l1_norm
+        else:
+            w = w_tilde
+
+        return w
+
+    def get_weights_not_working(self, model, opt, imgs, labels):
+        # 0. make a clone of the original model
+        meta_model = copy.deepcopy(model)
+        meta_model.load_state_dict(model.state_dict())
+        meta_model.to(self.config.device)
+
+        # 1. Update meta model on training data (discarded later)
+        meta_model.zero_grad()
+        meta_train_outputs = meta_model(imgs)
+        self.config.loss.reduction = "none"
+        meta_train_loss = self.config.loss(meta_train_outputs, labels)
+        eps = torch.zeros(meta_train_loss.size(), requires_grad=True).to(
+            self.config.device
+        )
+        meta_train_loss = torch.sum(eps * meta_train_loss)
+
+        grads = autograd.grad(
+            meta_train_loss,
+            (meta_model.module.parameters()),
+            create_graph=True,
+        )
+        meta_model.module.update_params(opt["lr"], source_params=grads)
+
+        # 2. Compute grads of eps on meta validation data
+        meta_inputs, meta_labels = next(self.meta_loader)
+        print(meta_labels.shape)
+        meta_inputs = meta_inputs.to(self.config.device)
+        meta_labels = meta_labels.to(self.config.device)
+
+        meta_val_outputs = meta_model(meta_inputs)
+        self.config.loss.reduction = "mean"
+        meta_val_loss = self.config.loss(meta_val_outputs, meta_labels)
+        eps_grads = autograd.grad(meta_val_loss, eps, only_inputs=True)[0].detach()
 
         # 3. Compute weights for current training batch
         w_tilde = torch.clamp(-eps_grads, min=0)

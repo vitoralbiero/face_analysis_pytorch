@@ -92,7 +92,7 @@ class LMDB(Dataset):
 
 
 class LMDBDataLoader(DataLoader):
-    def __init__(self, config, lmdb_path, train=True, use_mask=False):
+    def __init__(self, config, lmdb_path, train=True, use_mask=False, meta_train=False):
         transform = transforms.Compose(
             [
                 transforms.Resize((112, 112)),
@@ -109,7 +109,10 @@ class LMDBDataLoader(DataLoader):
 
         self._dataset = LMDB(lmdb_path, transform, target_transform, use_mask)
 
-        batch_size = min(config.batch_size, len(self._dataset))
+        if meta_train:
+            batch_size = len(self._dataset)
+        else:
+            batch_size = config.batch_size
 
         super(LMDBDataLoader, self).__init__(
             self._dataset,
