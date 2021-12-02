@@ -88,9 +88,6 @@ class Train:
             self.config.weights = self.weights
             print(self.weights)
 
-        if self.config.meta_learning:
-            self.config.loss = self.config.loss()
-        else:
             self.config.loss = self.config.loss(weight=self.weights)
 
         if self.config.val_source is not None:

@@ -15,5 +15,7 @@ workspace/
 # SGE jobs
 *.sge
 
+**/MNIST/*
+**/wandb/*
 **/full_datasets/*
 settings.json

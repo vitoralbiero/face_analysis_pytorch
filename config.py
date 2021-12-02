@@ -50,7 +50,7 @@ class Config(EasyDict):
         self.lr = args.lr
         self.momentum = 0.9
         self.pin_memory = True
-        self.frequency_log = 1
+        self.frequency_log = 20
         self.epochs = args.epochs
         self.reduce_lr = [9, 12, 14]
         self.lr_plateau = args.lr_plateau
