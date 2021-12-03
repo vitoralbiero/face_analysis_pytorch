@@ -423,7 +423,7 @@ class Train:
         with torch.no_grad():
             for idx in range(0, len(samples), self.config.batch_size):
                 batch = torch.tensor(samples[idx : idx + self.config.batch_size])
-                embeddings[idx : idx + self.config.batch_size] = self.full_model.model(
+                embeddings[idx : idx + self.config.batch_size] = self.full_model(
                     batch.to(self.config.device)
                 ).cpu()
                 idx += self.config.batch_size
