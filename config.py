@@ -68,8 +68,6 @@ class Config(EasyDict):
         if args.head:
             self.recognition_head = self.RECOGNITION_HEAD[args.head.lower()]
         self.margin = args.margin
-        self.meta_learning = args.meta_learning
-        self.meta_source = args.meta_source
         self.use_mask = args.use_mask
 
     def create_path(self, file_path):

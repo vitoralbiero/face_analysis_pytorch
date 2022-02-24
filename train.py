@@ -74,10 +74,7 @@ class Train:
             self.full_model = DataParallel(self.full_model)
 
         self.weights = None
-        if (
-            self.config.attribute in ["race", "gender"]
-            and not self.config.meta_learning
-        ):
+        if self.config.attribute in ["race", "gender"]:
             _, self.weights = np.unique(
                 self.train_loader.dataset.get_targets(), return_counts=True
             )
@@ -105,17 +102,6 @@ class Train:
                 for val_name in config.val_list:
                     dataset, issame = get_val_pair(self.config.val_source, val_name)
                     self.validation_list.append([dataset, issame, val_name])
-
-        if self.config.meta_source is not None and self.config.meta_learning:
-            if path.isfile(self.config.meta_source):
-                self.meta_loader = LMDBDataLoader(
-                    config=self.config,
-                    lmdb_path=self.config.meta_source,
-                    train=False,
-                    use_mask=self.config.use_mask,
-                    meta_train=True,
-                )
-                self.meta_loader = itertools.cycle(self.meta_loader)
 
         self.optimizer = optim.SGD(
             [
@@ -171,7 +157,6 @@ class Train:
         running_loss = 0.0
         step = 0
         val_acc = 0.0
-        val_loss = 0.0
 
         best_step = 0
         best_acc = float("Inf")
@@ -193,25 +178,12 @@ class Train:
 
                 self.optimizer.zero_grad()
 
-                if self.config.meta_learning:
-                    self.weights = self.get_weights(
-                        self.full_model, self.optimizer, imgs, labels
-                    )
-
                 if self.config.attribute == "recognition":
                     outputs = self.full_model(imgs, labels)
                 else:
                     outputs = self.full_model(imgs)
 
-                if self.weights is not None:
-                    if self.config.meta_learning:
-                        self.config.loss.reduction = "none"
-                        loss = self.config.loss(outputs, labels)
-                        loss = torch.sum(self.weights.to(loss.device) * loss)
-                    else:
-                        loss = self.config.loss(outputs, labels)
-                else:
-                    loss = self.config.loss(outputs, labels)
+                loss = self.config.loss(outputs, labels)
 
                 loss.backward()
                 running_loss += loss.item()
@@ -225,7 +197,7 @@ class Train:
 
                 if step % self.evaluate_every == 0 and step != 0:
                     if self.config.val_source is not None:
-                        val_acc, val_loss = self.evaluate(step)
+                        val_acc, _ = self.evaluate(step)
                         self.full_model.train()
                         best_acc, best_step = self.save_model(
                             val_acc, best_acc, step, best_step
@@ -253,82 +225,6 @@ class Train:
         val_acc, val_loss = self.evaluate(step)
         best_acc = self.save_model(val_acc, best_acc, step, best_step)
         print(f"Best accuracy: {best_acc} at step {best_step}")
-
-    def get_weights(self, model, opt, imgs, labels):
-        with higher.innerloop_ctx(model, opt) as (meta_model, meta_opt):
-            # 1. Update meta model on training data
-            meta_train_outputs = meta_model(imgs)
-            self.config.loss.reduction = "none"
-            meta_train_loss = self.config.loss(meta_train_outputs, labels)
-            eps = torch.zeros(meta_train_loss.size(), requires_grad=True).to(
-                self.config.device
-            )
-            meta_train_loss = torch.sum(eps * meta_train_loss)
-            meta_opt.step(meta_train_loss)
-
-            # 2. Compute grads of eps on meta validation data
-            meta_inputs, meta_labels = next(self.meta_loader)
-            meta_inputs = meta_inputs.to(self.config.device)
-            meta_labels = meta_labels.to(self.config.device)
-
-            meta_val_outputs = meta_model(meta_inputs)
-            self.config.loss.reduction = "mean"
-            meta_val_loss = self.config.loss(meta_val_outputs, meta_labels)
-            eps_grads = autograd.grad(meta_val_loss, eps, only_inputs=True)[0].detach()
-
-        # 3. Compute weights for current training batch
-        w_tilde = torch.clamp(-eps_grads, min=0)
-        l1_norm = torch.sum(w_tilde)
-        if l1_norm != 0:
-            w = w_tilde / l1_norm
-        else:
-            w = w_tilde
-
-        return w
-
-    def get_weights_not_working(self, model, opt, imgs, labels):
-        # 0. make a clone of the original model
-        meta_model = copy.deepcopy(model)
-        meta_model.load_state_dict(model.state_dict())
-        meta_model.to(self.config.device)
-
-        # 1. Update meta model on training data (discarded later)
-        meta_model.zero_grad()
-        meta_train_outputs = meta_model(imgs)
-        self.config.loss.reduction = "none"
-        meta_train_loss = self.config.loss(meta_train_outputs, labels)
-        eps = torch.zeros(meta_train_loss.size(), requires_grad=True).to(
-            self.config.device
-        )
-        meta_train_loss = torch.sum(eps * meta_train_loss)
-
-        grads = autograd.grad(
-            meta_train_loss,
-            (meta_model.module.parameters()),
-            create_graph=True,
-        )
-        meta_model.module.update_params(opt["lr"], source_params=grads)
-
-        # 2. Compute grads of eps on meta validation data
-        meta_inputs, meta_labels = next(self.meta_loader)
-        print(meta_labels.shape)
-        meta_inputs = meta_inputs.to(self.config.device)
-        meta_labels = meta_labels.to(self.config.device)
-
-        meta_val_outputs = meta_model(meta_inputs)
-        self.config.loss.reduction = "mean"
-        meta_val_loss = self.config.loss(meta_val_outputs, meta_labels)
-        eps_grads = autograd.grad(meta_val_loss, eps, only_inputs=True)[0].detach()
-
-        # 3. Compute weights for current training batch
-        w_tilde = torch.clamp(-eps_grads, min=0)
-        l1_norm = torch.sum(w_tilde)
-        if l1_norm != 0:
-            w = w_tilde / l1_norm
-        else:
-            w = w_tilde
-
-        return w
 
     def save_model(self, val_acc, best_acc, step, best_step):
         if (self.config.max_or_min == "max" and val_acc > best_acc) or (
@@ -393,9 +289,7 @@ class Train:
                 all_outputs = torch.cat((all_outputs, outputs), 0)
 
             if self.weights is not None:
-                loss = round(
-                    self.config.loss(all_outputs, y_true, weight=self.weights).item(), 4
-                )
+                loss = round(self.config.loss(all_outputs, y_true).item(), 4)
             else:
                 loss = round(self.config.loss(all_outputs, y_true).item(), 4)
 
@@ -423,9 +317,9 @@ class Train:
         with torch.no_grad():
             for idx in range(0, len(samples), self.config.batch_size):
                 batch = torch.tensor(samples[idx : idx + self.config.batch_size])
-                embeddings[idx : idx + self.config.batch_size] = self.full_model.module.model(
-                    batch.to(self.config.device)
-                ).cpu()
+                embeddings[
+                    idx : idx + self.config.batch_size
+                ] = self.full_model.module.model(batch.to(self.config.device)).cpu()
                 idx += self.config.batch_size
 
         tpr, fpr, accuracy, best_thresholds = verification.evaluate(
@@ -508,16 +402,6 @@ if __name__ == "__main__":
         "--resume", "-r", help="Path to load model to resume training.", type=str
     )
 
-    # meta-learning weights
-    parser.add_argument(
-        "--meta_learning",
-        "-ml",
-        help="Use meta-learning to weight the loss.",
-        action="store_true",
-    )
-    parser.add_argument(
-        "--meta_source", "-ms", help="Path to the meta images, or dataset LMDB file."
-    )
     # use masks to focus on face
     parser.add_argument(
         "--use_mask", "-us", help="Mask images with masks.", action="store_true"
