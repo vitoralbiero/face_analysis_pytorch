@@ -63,10 +63,21 @@ class Predictor:
             self.age_head.eval()
 
     def create_model(self, depth, drop_ratio, net_mode, model_path, head):
-        model = DataParallel(ResNet(depth, drop_ratio, net_mode)).to(self.device)
-        head = DataParallel(head()).to(self.device)
+        load_with_module = False
 
-        load_state(model=model, head=head, path_to_model=model_path, model_only=True)
+        model = ResNet(depth, drop_ratio, net_mode)
+        head = head()
+
+        try:
+            load_state(model=model, head=head, path_to_model=model_path, model_only=True)
+        except Exception:
+            load_with_module = True
+
+        model = DataParallel(model).to(self.device)
+        head = DataParallel(head).to(self.device)
+
+        if load_with_module:
+            load_state(model=model, head=head, path_to_model=model_path, model_only=True)
 
         model.eval()
         head.eval()
