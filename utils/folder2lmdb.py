@@ -1,8 +1,7 @@
 from os import path
 
 import lmdb
-import lz4framed
-import pyarrow as pa
+import msgpack
 from torch.utils.data import DataLoader
 from torchvision.datasets import ImageFolder
 from tqdm import tqdm
@@ -12,10 +11,6 @@ def raw_reader(path):
     with open(path, "rb") as f:
         bin_data = f.read()
     return bin_data
-
-
-def dumps_pyarrow(obj):
-    return lz4framed.compress(pa.serialize(obj).to_buffer())
 
 
 def list2lmdb(source, dest, name, num_workers=16, write_frequency=5000):
@@ -48,7 +43,7 @@ def list2lmdb(source, dest, name, num_workers=16, write_frequency=5000):
         # print(type(data), data)
         image, label = data[0]
         max_label = max(max_label, label)
-        txn.put("{}".format(idx).encode("ascii"), dumps_pyarrow((image, label)))
+        txn.put("{}".format(idx).encode("ascii"), msgpack.dumps((image, int(label))))
         if idx % write_frequency == 0:
             print("[%d/%d]" % (idx, len(data_loader)))
             txn.commit()
@@ -58,9 +53,9 @@ def list2lmdb(source, dest, name, num_workers=16, write_frequency=5000):
     txn.commit()
     keys = ["{}".format(k).encode("ascii") for k in range(idx + 1)]
     with db.begin(write=True) as txn:
-        txn.put(b"__keys__", dumps_pyarrow(keys))
-        txn.put(b"__len__", dumps_pyarrow(len(keys)))
-        txn.put(b"__classnum__", dumps_pyarrow(max_label + 1))
+        txn.put(b"__keys__", msgpack.dumps(keys))
+        txn.put(b"__len__", msgpack.dumps(len(keys)))
+        txn.put(b"__classnum__", msgpack.dumps(max_label + 1))
 
     print("Flushing database ...")
     db.sync()

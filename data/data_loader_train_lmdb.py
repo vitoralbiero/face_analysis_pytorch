@@ -1,9 +1,8 @@
 from os import path
 
 import lmdb
-import lz4framed
+import msgpack
 import numpy as np
-import pyarrow as pa
 import six
 from PIL import Image
 from torch.utils.data import DataLoader, Dataset
@@ -24,11 +23,9 @@ class LMDB(Dataset):
         )
 
         with self.env.begin(write=False) as txn:
-            self.length = pa.deserialize(lz4framed.decompress(txn.get(b"__len__")))
-            self.keys = pa.deserialize(lz4framed.decompress(txn.get(b"__keys__")))
-            self.classnum = pa.deserialize(
-                lz4framed.decompress(txn.get(b"__classnum__"))
-            )
+            self.length = msgpack.loads(txn.get(b"__len__"))
+            self.keys = msgpack.loads(txn.get(b"__keys__"))
+            self.classnum = msgpack.loads(txn.get(b"__classnum__"))
 
         self.transform = transform
         self.target_transform = target_transform
@@ -39,7 +36,7 @@ class LMDB(Dataset):
         env = self.env
         with env.begin(write=False) as txn:
             byteflow = txn.get(self.keys[index])
-        unpacked = pa.deserialize(lz4framed.decompress(byteflow))
+        unpacked = msgpack.loads(byteflow)
 
         # load image
         imgbuf = unpacked[0]
@@ -74,7 +71,7 @@ class LMDB(Dataset):
         with env.begin(write=False) as txn:
             byteflow = txn.get(self.keys[index])
 
-        unpacked = pa.deserialize(lz4framed.decompress(byteflow))
+        unpacked = msgpack.loads(byteflow)
         target = unpacked[1]
 
         return target

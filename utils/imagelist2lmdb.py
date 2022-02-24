@@ -2,7 +2,7 @@ import os
 from os import path
 
 import lmdb
-import lz4framed
+import msgpack
 import numpy as np
 import pandas as pd
 import pyarrow as pa
@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 from torchvision.datasets import ImageFolder
 from tqdm import tqdm
 
-from image_utils import blur_image
+from image_utils import blur_image_faster
 
 
 class ImageListRaw(ImageFolder):
@@ -19,6 +19,7 @@ class ImageListRaw(ImageFolder):
     MAX_CLASS = {"race": 4, "gender": 1, "age": 100, "recognition": float("Inf")}
 
     def __init__(self, attribute_name, source, mask_source, image_list, train=True):
+        self.max_blur = None
         attribute = self.ATTRIBUTES[attribute_name]
         max_class = self.MAX_CLASS[attribute_name]
 
@@ -59,7 +60,10 @@ class ImageListRaw(ImageFolder):
         if self.masks is not None:
             img = Image.open(self.samples[index]).convert("RGB")
             mask = Image.open(self.masks[index])
-            img = blur_image(np.asarray(img).copy(), np.asarray(mask).copy())
+
+            img = blur_image_faster(
+                np.asarray(img).copy(), np.asarray(mask).copy(), max_blur=self.max_blur
+            )
             img = Image.fromarray(img)
 
             temp_file = f"/hd3/{index}{path.splitext(self.samples[index])[1]}"
@@ -84,10 +88,6 @@ class CustomRawLoader(DataLoader):
         )
 
 
-def dumps_pyarrow(obj):
-    return lz4framed.compress(pa.serialize(obj).to_buffer())
-
-
 def list2lmdb(
     attribute,
     source,
@@ -108,10 +108,13 @@ def list2lmdb(
 
     print(f"Generate LMDB to {lmdb_path}")
 
+    # sigmas = np.linspace(2, 16, 8).astype(int)
+    sigmas = [10]
+
     image_size = 224
     size = len(data_loader.dataset) * image_size * image_size * 3
     if mask_source is not None:
-        size *= 2
+        size *= len(sigmas)
 
     print(f"LMDB max size: {size}")
 
@@ -124,24 +127,43 @@ def list2lmdb(
         map_async=True,
     )
 
-    print(len(data_loader.dataset))
-    txn = db.begin(write=True)
-    for idx, data in tqdm(enumerate(data_loader)):
-        # print(type(data), data)
-        image, label = data[0]
-        txn.put("{}".format(idx).encode("ascii"), dumps_pyarrow((image, label)))
-        if idx % write_frequency == 0:
-            print("[%d/%d]" % (idx, len(data_loader)))
-            txn.commit()
-            txn = db.begin(write=True)
+    if mask_source is None:
+        print(len(data_loader.dataset))
+        txn = db.begin(write=True)
+        for idx, data in tqdm(enumerate(data_loader)):
+            image, label = data[0]
+            txn.put(
+                "{}".format(idx).encode("ascii"), msgpack.dumps((image, int(label)))
+            )
+            if idx % write_frequency == 0:
+                print("[%d/%d]" % (idx, len(data_loader)))
+                txn.commit()
+                txn = db.begin(write=True)
+        idx += 1
+    else:
+        print(len(data_loader.dataset) * len(sigmas))
+        txn = db.begin(write=True)
+        idx = 0
+        for sigma in sigmas:
+            data_loader.dataset.max_blur = sigma
+            for _, data in tqdm(enumerate(data_loader)):
+                image, label = data[0]
+                txn.put(
+                    "{}".format(idx).encode("ascii"), msgpack.dumps((image, int(label)))
+                )
+                if idx % write_frequency == 0:
+                    print("[%d/%d]" % (idx, len(data_loader)))
+                    txn.commit()
+                    txn = db.begin(write=True)
+                idx += 1
 
     # finish iterating through dataset
     txn.commit()
-    keys = ["{}".format(k).encode("ascii") for k in range(idx + 1)]
+    keys = ["{}".format(k).encode("ascii") for k in range(idx)]
     with db.begin(write=True) as txn:
-        txn.put(b"__keys__", dumps_pyarrow(keys))
-        txn.put(b"__len__", dumps_pyarrow(len(keys)))
-        txn.put(b"__classnum__", dumps_pyarrow(data_loader.dataset.classnum))
+        txn.put(b"__keys__", msgpack.dumps(keys))
+        txn.put(b"__len__", msgpack.dumps(len(keys)))
+        txn.put(b"__classnum__", msgpack.dumps(int(data_loader.dataset.classnum)))
 
     print("Flushing database ...")
     db.sync()
